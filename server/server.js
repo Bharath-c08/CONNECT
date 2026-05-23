@@ -196,6 +196,10 @@ io.on('connection', (socket) => {
     io.to(data.to).emit('call-rejected');
   });
 
+  socket.on('ice-candidate', (data) => {
+    io.to(data.to).emit('ice-candidate', data.candidate);
+  });
+
   socket.on('disconnect', () => {
     console.log('WebSocket client disconnected:', socket.id);
   });
