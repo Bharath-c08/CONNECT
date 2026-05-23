@@ -20,7 +20,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
-import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser } from '../../utils/api';
+import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { io, Socket } from 'socket.io-client';
 import CallOverlay from '../../components/CallOverlay';
 
@@ -119,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!user) return;
     
     // Setup Global Socket for incoming calls & live notifications
-    const socket = io('http://localhost:5000');
+    const socket = io(getSocketUrl());
     setGlobalSocket(socket);
 
     socket.on('connect', () => {

@@ -1,4 +1,18 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+export const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:5000/api`;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+};
+
+export const getSocketUrl = () => {
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:5000`;
+  }
+  return 'http://localhost:5000';
+};
+
+const BASE_URL = getBaseUrl();
 
 export const getAuthToken = (): string | null => {
   if (typeof window !== 'undefined') {

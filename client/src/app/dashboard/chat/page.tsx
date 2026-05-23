@@ -15,9 +15,9 @@ import {
   Video,
   Phone
 } from 'lucide-react';
-import { apiRequest, getCurrentUser } from '../../../utils/api';
+import { apiRequest, getCurrentUser, getSocketUrl } from '../../../utils/api';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = getSocketUrl();
 
 export default function ChatHubPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
