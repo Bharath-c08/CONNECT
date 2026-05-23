@@ -173,19 +173,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC Signaling Events
+  // WebRTC Signaling Events (now just used to trigger Jitsi Rooms)
   socket.on('call-user', (data) => {
-    // data = { userToCall, signalData, from, name, type }
+    // data = { userToCall, from, name, type, roomName }
     io.to(data.userToCall).emit('incoming-call', { 
-      signal: data.signalData, 
       from: data.from, 
       name: data.name,
-      type: data.type || 'video'
+      type: data.type || 'video',
+      roomName: data.roomName
     });
-  });
-
-  socket.on('answer-call', (data) => {
-    io.to(data.to).emit('call-accepted', data.signal);
   });
 
   socket.on('end-call', (data) => {
@@ -194,10 +190,6 @@ io.on('connection', (socket) => {
 
   socket.on('reject-call', (data) => {
     io.to(data.to).emit('call-rejected');
-  });
-
-  socket.on('ice-candidate', (data) => {
-    io.to(data.to).emit('ice-candidate', data.candidate);
   });
 
   socket.on('disconnect', () => {
