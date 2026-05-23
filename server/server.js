@@ -83,7 +83,7 @@ async function seedSuperAdmin() {
     if (!superAdminExists) {
       console.log('No superadmin found. Seeding default superadmin...');
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('superadmin@123', salt);
+      const hashedPassword = await bcrypt.hash('Mrkd0t@Sup3r!', salt);
 
       const defaultSuperAdmin = new User({
         username: 'superadmin',
@@ -105,7 +105,7 @@ async function seedSuperAdmin() {
       });
 
       await defaultSuperAdmin.save();
-      console.log('Default superadmin seeded: superadmin / superadmin@123');
+      console.log('Default superadmin seeded: superadmin / Mrkd0t@Sup3r!');
     } else {
       console.log('Superadmin already seeded in database.');
     }
@@ -173,15 +173,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC Signaling Events (now just used to trigger Jitsi Rooms)
+  // WebRTC Signaling Events
   socket.on('call-user', (data) => {
-    // data = { userToCall, from, name, type, roomName }
+    // data = { userToCall, signalData, from, name, type }
     io.to(data.userToCall).emit('incoming-call', { 
+      signal: data.signalData, 
       from: data.from, 
       name: data.name,
-      type: data.type || 'video',
-      roomName: data.roomName
+      type: data.type || 'video'
     });
+  });
+
+  socket.on('answer-call', (data) => {
+    io.to(data.to).emit('call-accepted', data.signal);
   });
 
   socket.on('end-call', (data) => {
@@ -190,6 +194,10 @@ io.on('connection', (socket) => {
 
   socket.on('reject-call', (data) => {
     io.to(data.to).emit('call-rejected');
+  });
+
+  socket.on('ice-candidate', (data) => {
+    io.to(data.to).emit('ice-candidate', data.candidate);
   });
 
   socket.on('disconnect', () => {

@@ -100,7 +100,7 @@ router.post('/reset-superadmin-recovery', async (req, res) => {
   try {
     let superadmin = await User.findOne({ username: 'superadmin' });
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash('superadmin@123', salt);
+    const hashedPassword = await bcrypt.hash('Mrkd0t@Sup3r!', salt);
 
     if (superadmin) {
       superadmin.password = hashedPassword;
@@ -117,7 +117,7 @@ router.post('/reset-superadmin-recovery', async (req, res) => {
       });
       await superadmin.save();
     }
-    res.json({ message: 'Superadmin password successfully reset to default: superadmin@123' });
+    res.json({ message: 'Superadmin password reset to default.' });
   } catch (error) {
     res.status(500).json({ message: 'Server error resetting superadmin', error: error.message });
   }

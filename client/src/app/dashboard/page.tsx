@@ -13,11 +13,32 @@ import {
   User as UserIcon,
   ChevronRight,
   ClipboardList,
-  AlertCircle
+  AlertCircle,
+  Binary,
+  Radio,
+  Sliders
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { apiRequest } from '../../utils/api';
+import { motion } from 'framer-motion';
+
+const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
+
+const gridContainerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05
+    }
+  }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 15, scale: 0.98 },
+  show: { opacity: 1, y: 0, scale: 1, transition: springTransition }
+};
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -38,7 +59,6 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    // Stopwatch timer logic
     if (clockedIn && activeSession?.clockIn) {
       const start = new Date(activeSession.clockIn).getTime();
       
@@ -76,28 +96,23 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch profile
       const userProfile = await apiRequest('/auth/me');
       setUser(userProfile);
 
-      // 2. Fetch clock status
       const clockData = await apiRequest('/clock/status');
       setClockedIn(clockData.clockedIn);
       setActiveSession(clockData.session);
 
-      // 3. Fetch personal tasks
       const taskData = await apiRequest('/tasks/my');
-      setTasks(taskData.slice(0, 4)); // Show top 4 active tasks
+      setTasks(taskData.slice(0, 4));
 
-      // 4. Fetch shift history for analytics
       const historyData = await apiRequest('/clock/history');
-      setHistory(historyData.slice(0, 10)); // Show last 10 sessions
+      setHistory(historyData.slice(0, 10));
 
-      // 5. Fetch personal leaves
       const leaveData = await apiRequest('/leaves/my');
-      setLeaves(leaveData.slice(0, 3)); // Show top 3 requests
+      setLeaves(leaveData.slice(0, 3));
     } catch (err: any) {
-      setError(err.message || 'Error loading dashboard. Please check server connection.');
+      setError(err.message || 'ERROR CONNECTING TO SYS_CORE. PLEASE LINK UPLINK INTERFACE.');
     } finally {
       setLoading(false);
     }
@@ -108,22 +123,20 @@ export default function DashboardPage() {
     try {
       if (clockedIn) {
         // Clock Out
-        const data = await apiRequest('/clock/out', { method: 'POST' });
+        await apiRequest('/clock/out', { method: 'POST' });
         setClockedIn(false);
         setActiveSession(null);
         
-        // Trigger high-end confetti celebration
         confetti({
           particleCount: 150,
           spread: 75,
           origin: { y: 0.6 },
-          colors: ['#f43f5e', '#ffffff', '#fbbf24', '#6366f1']
+          colors: ['#ef4444', '#d946ef', '#ffffff', '#10b981']
         });
 
         fetchDashboardData();
       } else {
         // Clock In
-        // Optional: attempt to get coordinates
         let location = null;
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -131,12 +144,11 @@ export default function DashboardPage() {
               location = {
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
-                address: 'GPS Verified Location'
+                address: 'GPS LINK VERIFIED'
               };
               await triggerClockIn(location);
             },
             async () => {
-              // Denied geoloc - clock in anyway
               await triggerClockIn(null);
             }
           );
@@ -145,7 +157,7 @@ export default function DashboardPage() {
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Clock operations failed.');
+      setError(err.message || 'CLOCK TELEMETRY FAULT.');
     }
   };
 
@@ -169,31 +181,30 @@ export default function DashboardPage() {
       confetti({
         particleCount: 50,
         spread: 40,
-        colors: ['#f43f5e', '#10b981']
+        colors: ['#ef4444', '#10b981']
       });
 
       fetchDashboardData();
     } catch (err: any) {
-      setError(err.message || 'Error updating task status.');
+      setError(err.message || 'MISSION UPDATE FAILED.');
     }
   };
 
-  // Process data for Recharts hours
   const getChartData = () => {
     if (history.length === 0) {
       return [
-        { name: 'Mon', hours: 0 },
-        { name: 'Tue', hours: 0 },
-        { name: 'Wed', hours: 0 },
-        { name: 'Thu', hours: 0 },
-        { name: 'Fri', hours: 0 }
+        { name: '01', hours: 0 },
+        { name: '02', hours: 0 },
+        { name: '03', hours: 0 },
+        { name: '04', hours: 0 },
+        { name: '05', hours: 0 }
       ];
     }
 
     return [...history]
       .reverse()
-      .slice(-7) // Last 7 sessions
-      .map(session => {
+      .slice(-7)
+      .map((session, index) => {
         const date = new Date(session.clockIn);
         return {
           name: date.toLocaleDateString([], { weekday: 'short', day: 'numeric' }),
@@ -203,7 +214,6 @@ export default function DashboardPage() {
       });
   };
 
-  // Calculate live earnings since clocked in
   const getLiveEarnings = () => {
     if (!clockedIn || !user) return 0;
     const minutes = elapsedSeconds / 60;
@@ -211,10 +221,8 @@ export default function DashboardPage() {
     const hourlyPay = monthlySalary / 176;
     const payPerMinute = hourlyPay / 60;
     
-    // Simple per-minute live calculation
     let earned = minutes * payPerMinute;
     
-    // Check if overtime has started (e.g. active minutes > 480)
     if (user.overtimeEligible && minutes > 480) {
       const regularEarned = 480 * payPerMinute;
       const overtimeEarned = (minutes - 480) * (user.overtimePayPerMinute || 0);
@@ -226,9 +234,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
-        <div className="w-10 h-10 border-[3px] rounded-full animate-spin" style={{ borderColor: 'var(--border-strong)', borderTopColor: 'var(--brand)' }} />
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading dashboard…</p>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 font-mono text-[11px] tracking-wider select-none text-slate-500">
+        <Binary className="w-8 h-8 text-cyan-400 animate-spin" />
+        <p>DECODING CORE_DASHBOARD TELEMETRY...</p>
       </div>
     );
   }
@@ -238,115 +246,139 @@ export default function DashboardPage() {
 
       {/* Error */}
       {error && (
-        <div
-          className="flex items-start gap-3 p-4 rounded-xl text-sm"
-          style={{ background: 'var(--danger-subtle)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--danger)' }}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-3 p-4 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 font-mono text-xs select-none"
         >
-          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+          <AlertCircle className="w-4.5 h-4.5 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold">System Alert</p>
-            <p className="mt-0.5 opacity-80">{error}</p>
+            <p className="font-extrabold">// TELEMETRY_ALARM</p>
+            <p className="mt-1 opacity-80">{error}</p>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Welcome Header */}
       {user && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={springTransition}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none font-mono"
+        >
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Welcome back, <span style={{ color: 'var(--brand)' }}>{user.fullName}</span>
+            <h1 className="text-xl font-extrabold tracking-widest text-[#ef4444]">
+              // ACTIVE_OPERATOR: {user.fullName.toUpperCase()}
             </h1>
-            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Here is your operations overview for today.
+            <p className="mt-1 text-[10px] text-slate-500 tracking-wider">
+              UPLINK DECK_01 SECURE TERMINAL ESTABLISHED.
             </p>
           </div>
           <div
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono select-none self-start sm:self-auto"
-            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded text-xs select-none self-start sm:self-auto border bg-zinc-950/40"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
-            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>ID</span>
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{user.employeeId}</span>
+            <span className="opacity-45 text-[10px]">OPERATOR_ID:</span>
+            <span className="font-bold text-white tracking-widest">{user.employeeId}</span>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Bento Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <motion.div 
+        variants={gridContainerVariants}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+      >
 
         {/* ── Clock Card ── */}
-        <div
-          className="glass-card anim-fade-up anim-delay-1 flex flex-col gap-6"
-          style={{ borderColor: 'rgba(239,68,68,0.12)' }}
+        <motion.div
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-6"
+          style={{ borderColor: clockedIn ? 'var(--success)' : 'var(--border)' }}
         >
-          {/* Card header */}
-          <div className="flex items-center justify-between">
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_01 // TIME_TELEMETRY</div>
+          
+          <div className="flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand-subtle)' }}>
-                <Clock className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-[#ef4444]">
+                <Clock className="w-4 h-4" />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Time Tracker</p>
-                <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                  {clockedIn ? 'Shift in progress' : 'Not clocked in'}
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">SHIFT_LOG</p>
+                <p className="text-[11px] font-extrabold mt-0.5" style={{ color: clockedIn ? 'var(--success)' : 'var(--text-secondary)' }}>
+                  {clockedIn ? 'TRANSMITTING...' : 'DISCONNECTED'}
                 </p>
               </div>
             </div>
-            <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ background: clockedIn ? 'var(--success)' : 'var(--text-muted)', boxShadow: clockedIn ? '0 0 6px var(--success)' : 'none' }}
-            />
+            {clockedIn ? (
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+            ) : (
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
+            )}
           </div>
 
-          {/* Stopwatch */}
-          <div className="text-center py-4">
-            <p className="text-4xl font-bold font-mono tracking-tight" style={{ color: 'var(--text-primary)', letterSpacing: '-1px' }}>
+          <div className="text-center py-2 select-none">
+            <p className="text-3xl font-extrabold font-mono tracking-widest text-white" style={{ letterSpacing: '2px' }}>
               {elapsedTime}
             </p>
-            <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-              {clockedIn ? 'Live elapsed time' : 'Ready to start'}
+            <p className="text-[9px] font-mono mt-1 text-slate-500 tracking-wider">
+              {clockedIn ? 'LIVE_STREAM_ELAPSED' : 'SYSTEM_READY'}
             </p>
           </div>
 
-          {/* Earnings & Button */}
-          <div className="flex flex-col gap-3 mt-auto">
+          <div className="flex flex-col gap-3 mt-auto font-mono">
             {clockedIn && (
-              <div
-                className="flex items-center justify-between px-4 py-3 rounded-xl"
-                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center justify-between px-3 py-2 rounded bg-zinc-950/60 border text-[11px] select-none"
+                style={{ borderColor: 'var(--border)' }}
               >
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Est. shift earnings</span>
-                <span className="text-sm font-bold font-mono" style={{ color: 'var(--success)' }}>₹{getLiveEarnings()}</span>
-              </div>
+                <span className="text-slate-500">CREDITS_ACCUMULATION</span>
+                <span className="font-bold text-emerald-400 font-mono">₹{getLiveEarnings()}</span>
+              </motion.div>
             )}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               onClick={handleClockInOut}
-              className="btn btn-primary w-full text-base"
+              className="btn btn-primary w-full h-11 text-xs cursor-pointer border-0"
               style={{
-                height: '52px',
-                background: clockedIn ? '#dc2626' : 'var(--brand)',
-                boxShadow: clockedIn ? '0 4px 16px rgba(220,38,38,0.3)' : '0 4px 16px rgba(239,68,68,0.25)',
+                background: clockedIn ? 'var(--danger)' : 'var(--brand)',
+                boxShadow: clockedIn ? '0 0 15px rgba(244,63,94,0.2)' : '0 0 15px rgba(6,182,212,0.2)',
               }}
             >
               {clockedIn ? (
-                <><Square className="w-4 h-4 fill-white" /><span>Clock Off</span></>
+                <><Square className="w-3.5 h-3.5 fill-current" /><span>DISCONNECT_SHIFT</span></>
               ) : (
-                <><Play className="w-4 h-4 fill-white" /><span>Clock In</span></>
+                <><Play className="w-3.5 h-3.5 fill-current" /><span>INITIATE_SHIFT</span></>
               )}
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Shift Analytics Chart ── */}
-        <div className="glass-card anim-fade-up anim-delay-2 lg:col-span-2 flex flex-col gap-5">
-          <div className="flex items-center justify-between">
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card lg:col-span-2 flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_02 // LOAD_WAVE_ANALYSER</div>
+          
+          <div className="flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand-subtle)' }}>
-                <TrendingUp className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-[#ef4444]">
+                <TrendingUp className="w-4 h-4" />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Shift Analytics</p>
-                <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--text-secondary)' }}>Hours worked (last 7 sessions)</p>
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">WAVE_SPECTRUM</p>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">Shift Telemetry analytics (7 sessions)</p>
               </div>
             </div>
           </div>
@@ -355,59 +387,66 @@ export default function DashboardPage() {
               <AreaChart data={getChartData()} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="var(--brand)" stopOpacity={0.3} />
+                    <stop offset="5%"  stopColor="var(--brand)" stopOpacity={0.2} />
                     <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} />
+                <CartesianGrid strokeDasharray="2 2" stroke="rgba(99, 102, 241, 0.08)" />
+                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} tickLine={false} className="font-mono" />
+                <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} className="font-mono" />
                 <Tooltip
                   contentStyle={{
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-strong)',
-                    borderRadius: '10px',
+                    borderRadius: '4px',
                     color: 'var(--text-primary)',
-                    fontSize: '13px',
-                    padding: '10px 14px',
+                    fontSize: '11px',
+                    padding: '8px 12px',
+                    fontFamily: 'JetBrains Mono, monospace'
                   }}
-                  itemStyle={{ color: 'var(--brand)', fontWeight: 600 }}
-                  labelStyle={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}
+                  itemStyle={{ color: 'var(--brand)', fontWeight: 700 }}
+                  labelStyle={{ color: 'var(--text-secondary)', fontWeight: 700, marginBottom: '4px' }}
                 />
-                <Area type="monotone" dataKey="hours" stroke="var(--brand)" strokeWidth={2} fill="url(#colorHours)" />
+                <Area type="monotone" dataKey="hours" stroke="var(--brand)" strokeWidth={1.5} fill="url(#colorHours)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Profile Summary ── */}
-        <div className="glass-card anim-fade-up anim-delay-3 flex flex-col gap-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand-subtle)' }}>
-              <UserIcon className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_03 // OPERATOR_CREDENTIALS</div>
+          
+          <div className="flex items-center gap-3 select-none">
+            <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-[#ef4444]">
+              <UserIcon className="w-4 h-4" />
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>My Profile</p>
-              <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--text-secondary)' }}>Employment details</p>
+            <div className="font-mono">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PARAMETERS</p>
+              <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">Operator Registry metrics</p>
             </div>
           </div>
           {user && (
-            <div className="flex flex-col gap-0">
+            <div className="flex flex-col gap-0 select-none font-mono text-xs">
               {[
-                { label: 'Basic Pay', value: `₹${user.basicPay || 0}/mo`, mono: true },
-                { label: 'Overtime', value: user.overtimeEligible ? 'Eligible' : 'Not Eligible', highlight: user.overtimeEligible ? 'success' : null },
-                ...(user.overtimeEligible ? [{ label: 'OT Rate', value: `₹${user.overtimePayPerMinute || 0}/min`, mono: true }] : []),
-                { label: 'Contract', value: user.employmentType || 'Full-time' },
-                { label: 'Joined', value: user.joiningDate ? new Date(user.joiningDate).toLocaleDateString([], { dateStyle: 'medium' }) : 'N/A' },
+                { label: 'BASIC_PAY', value: `₹${user.basicPay || 0}/mo`, mono: true },
+                { label: 'OVERTIME', value: user.overtimeEligible ? 'SECURE_OT' : 'NO_OT', highlight: user.overtimeEligible ? 'success' : null },
+                ...(user.overtimeEligible ? [{ label: 'OT_WAGE_RATE', value: `₹${user.overtimePayPerMinute || 0}/min`, mono: true }] : []),
+                { label: 'CONTRACT', value: (user.employmentType || 'FULLTIME').toUpperCase() },
+                { label: 'ESTABLISHED', value: user.joiningDate ? new Date(user.joiningDate).toLocaleDateString([], { dateStyle: 'short' }) : 'N/A' },
               ].map((row, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between py-3"
                   style={{ borderBottom: '1px solid var(--border)' }}
                 >
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{row.label}</span>
+                  <span className="text-slate-500 text-[10px]">{row.label}</span>
                   <span
-                    className={`text-sm font-semibold ${(row as any).mono ? 'font-mono' : ''}`}
+                    className={`font-semibold ${(row as any).mono ? 'font-mono text-cyan-400' : ''}`}
                     style={{ color: (row as any).highlight === 'success' ? 'var(--success)' : 'var(--text-primary)' }}
                   >
                     {row.value}
@@ -416,100 +455,115 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
 
         {/* ── My Tasks ── */}
-        <div className="glass-card anim-fade-up anim-delay-4 flex flex-col gap-5">
-          <div className="flex items-center justify-between">
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_04 // ACTIVE_MISSIONS</div>
+          
+          <div className="flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand-subtle)' }}>
-                <ClipboardList className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-[#ef4444]">
+                <ClipboardList className="w-4 h-4" />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>My Tasks</p>
-                <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--text-secondary)' }}>Active assignments</p>
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">MISSION_LOGS</p>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">Assigned tactical pipelines</p>
               </div>
             </div>
             <Link
               href="/dashboard/tasks"
-              className="flex items-center gap-1 text-sm font-semibold"
+              className="flex items-center gap-0.5 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline"
               style={{ color: 'var(--brand)' }}
             >
-              <span>Board</span><ChevronRight className="w-4 h-4" />
+              <span>SYS_BOARD</span><ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="flex flex-col gap-2">
             {tasks.length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No active tasks. Nice work!</p>
+              <p className="text-[11px] font-mono text-center py-8 text-slate-500 italic">NO ASSIGNED MISSION CAPSULES.</p>
             ) : (
               tasks.map(task => (
                 <div
                   key={task._id}
-                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
-                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded border"
+                  style={{ background: 'rgba(16,16,24,0.4)', borderColor: 'var(--border)' }}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{task.title}</p>
-                    <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--text-muted)' }}>{task.priority} priority</p>
+                  <div className="min-w-0 flex-1 select-none font-mono">
+                    <p className="text-xs font-bold truncate text-white">{task.title}</p>
+                    <p className="text-[9px] mt-0.5 uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>PRIORITY: {task.priority}</p>
                   </div>
                   {task.status !== 'completed' && (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleTaskComplete(task._id)}
-                      className="btn-icon"
-                      style={{ color: 'var(--success)', background: 'var(--success-subtle)', borderColor: 'rgba(16,185,129,0.2)' }}
-                      title="Mark Complete"
+                      className="btn-icon cursor-pointer h-7 w-7 rounded"
+                      style={{ color: 'var(--success)', background: 'var(--success-subtle)', borderColor: 'rgba(16,185,129,0.3)' }}
+                      title="MARK_SOLVED"
                     >
-                      <CheckSquare className="w-4 h-4" />
-                    </button>
+                      <CheckSquare className="w-3.5 h-3.5" />
+                    </motion.button>
                   )}
                 </div>
               ))
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Leave Tracker ── */}
-        <div className="glass-card anim-fade-up anim-delay-5 flex flex-col gap-5">
-          <div className="flex items-center justify-between">
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_05 // DISCONNECT_LOGS</div>
+          
+          <div className="flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand-subtle)' }}>
-                <Calendar className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-[#ef4444]">
+                <Calendar className="w-4 h-4" />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Leave</p>
-                <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--text-secondary)' }}>Recent requests</p>
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">SCHEDULE_LOG</p>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">Departure timeoff logs</p>
               </div>
             </div>
             <Link
               href="/dashboard/leaves"
-              className="flex items-center gap-1 text-sm font-semibold"
+              className="flex items-center gap-0.5 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline"
               style={{ color: 'var(--brand)' }}
             >
-              <span>Planner</span><ChevronRight className="w-4 h-4" />
+              <span>SYS_PLANNER</span><ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="flex flex-col gap-2">
             {leaves.length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No leave requests this month.</p>
+              <p className="text-[11px] font-mono text-center py-8 text-slate-500 italic">NO TIME OFF REGISTRY DETECTED.</p>
             ) : (
               leaves.map(leave => (
                 <div
                   key={leave._id}
-                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
-                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded border"
+                  style={{ background: 'rgba(16,16,24,0.4)', borderColor: 'var(--border)' }}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold truncate capitalize" style={{ color: 'var(--text-primary)' }}>{leave.leaveType} Leave</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  <div className="min-w-0 flex-1 select-none font-mono">
+                    <p className="text-xs font-bold truncate text-white capitalize">{leave.leaveType} Leave</p>
+                    <p className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {new Date(leave.startDate).toLocaleDateString([], { month: 'short', day: 'numeric' })} –{' '}
                       {new Date(leave.endDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                   <span
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg capitalize"
+                    className="text-[9px] font-mono font-bold px-2 py-0.5 rounded capitalize select-none border"
                     style={{
                       background: leave.status === 'approved' ? 'var(--success-subtle)' : leave.status === 'rejected' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
                       color: leave.status === 'approved' ? 'var(--success)' : leave.status === 'rejected' ? 'var(--danger)' : 'var(--warning)',
+                      borderColor: leave.status === 'approved' ? 'rgba(16,185,129,0.3)' : leave.status === 'rejected' ? 'rgba(244,63,94,0.3)' : 'rgba(245,158,11,0.3)'
                     }}
                   >
                     {leave.status}
@@ -518,10 +572,9 @@ export default function DashboardPage() {
               ))
             )}
           </div>
-        </div>
+        </motion.div>
 
-      </div>
+      </motion.div>
     </div>
   );
 }
-

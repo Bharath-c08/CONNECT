@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, User as UserIcon, RefreshCw, AlertCircle, CheckCircle, Sun, Moon } from 'lucide-react';
+import { Shield, Lock, User as UserIcon, RefreshCw, AlertCircle, CheckCircle, Sun, Moon, Cpu, Binary } from 'lucide-react';
 import { apiRequest, setAuthToken, setCurrentUser, getAuthToken } from '../utils/api';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,151 +42,192 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
-    // If token exists, skip login page
     const token = getAuthToken();
     if (token) {
       router.push('/dashboard');
     }
   }, [router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Shared login helper — does NOT populate the password <input> to avoid Chrome breach warnings
+  const loginWithCredentials = async (u: string, p: string) => {
     setLoading(true);
     setError('');
     setSuccess('');
-
     try {
       const data = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: u, password: p }),
       });
-
       setAuthToken(data.token);
       setCurrentUser(data.user);
-      
-      setSuccess('Access granted! Connecting to dashboard...');
+      setSuccess('DECRYPTION SUCCESSFUL // ESTABLISHING NODE...');
       setTimeout(() => {
         router.push('/dashboard');
       }, 1000);
     } catch (err: any) {
-      setError(err.message || 'Invalid username or password. Please try again.');
+      setError(err.message || 'CREDENTIALS REJECTED. OPERATION TERMINATED.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await loginWithCredentials(username, password);
   };
 
   const handleResetSuperadmin = async () => {
     setIsResetting(true);
     setError('');
     setSuccess('');
-
     try {
       const data = await apiRequest('/auth/reset-superadmin-recovery', {
         method: 'POST',
       });
-      setSuccess(data.message || 'Superadmin reset successfully!');
+      // Show credentials as text — do NOT put password into the <input type="password">
+      setSuccess((data.message || 'SUPERADMIN NODE RESTORED.') + ' Login: superadmin / superadmin@123');
       setUsername('superadmin');
-      setPassword('superadmin@123');
+      // password state left empty intentionally to avoid Chrome breach warning
     } catch (err: any) {
-      setError(err.message || 'Error resetting superadmin credentials.');
+      setError(err.message || 'RESET NODE RETRIEVAL ERROR.');
     } finally {
       setIsResetting(false);
     }
   };
 
-  const handleQuickFill = (role: 'superadmin' | 'admin' | 'user') => {
-    if (role === 'superadmin') {
-      setUsername('superadmin');
-      setPassword('superadmin@123');
-    } else if (role === 'admin') {
-      setUsername('admin_demo');
-      setPassword('admin123');
-    } else {
-      setUsername('employee_demo');
-      setPassword('user123');
-    }
+  // Quick-login: calls API directly, never puts password into the DOM password field
+  const handleQuickLogin = async (role: 'superadmin' | 'admin' | 'user') => {
+    const creds: Record<string, { u: string; p: string }> = {
+      superadmin: { u: 'superadmin',    p: 'Mrkd0t@Sup3r!' },
+      admin:      { u: 'admin_demo',    p: 'Mrkd0t@Adm1n!' },
+      user:       { u: 'employee_demo', p: 'Mrkd0t@Us3r!'  },
+    };
+    const { u, p } = creds[role];
+    await loginWithCredentials(u, p);
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-background text-foreground px-4 overflow-hidden select-none">
+    <div className="relative min-h-screen flex items-center justify-center bg-background text-foreground px-4 overflow-hidden select-none scanlines cyber-grid-bg" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
       {/* Floating Theme Switcher top right */}
-      <div className="absolute top-6 right-6 z-20">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springTransition}
+        className="absolute top-6 right-6 z-20"
+      >
         <button
           onClick={toggleTheme}
-          className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center shadow-lg"
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className="p-3 rounded-xl bg-[#08080c] border hover:bg-cyan-500/10 hover:text-cyan-400 transition-all cursor-pointer flex items-center justify-center shadow-lg font-mono text-[10px] font-bold"
+          style={{ borderColor: 'var(--border)' }}
+          title={theme === 'dark' ? 'DECK_MODE_LIGHT' : 'DECK_MODE_DARK'}
         >
-          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-cyan-400" /> : <Moon className="w-4 h-4 text-teal-500" />}
         </button>
+      </motion.div>
+
+      {/* Sci-Fi Decorative Corner Accents */}
+      <div className="absolute top-6 left-6 font-mono text-[8px] opacity-40 select-none hidden md:block">
+        <div>SYS_OPERATIONAL: OK</div>
+        <div>NET_LINK: ENCRYPTED</div>
+        <div>CORE_TEMP: 42°C</div>
       </div>
-
-      {/* Interactive Background Ambient Glows */}
-      <div className="absolute top-[10%] left-[10%] w-[450px] h-[450px] rounded-full bg-radial from-red-500/10 via-red-500/5 to-transparent blur-3xl pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}></div>
-      <div className="absolute bottom-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-radial from-indigo-500/10 via-indigo-500/5 to-transparent blur-3xl pointer-events-none animate-pulse" style={{ animationDuration: '12s' }}></div>
-
-      {/* Adaptive Blueprint Grid Overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--grid-line)_1px,transparent_1px),linear-gradient(to_bottom,var(--grid-line)_1px,transparent_1px)] bg-[size:48px_48px] pointer-events-none opacity-80"></div>
+      <div className="absolute bottom-6 right-6 font-mono text-[8px] opacity-40 select-none hidden md:block text-right">
+        <div>NODE_SECURE: RSA_4096</div>
+        <div>CONSOLE_LOC: SECURE_CORE_01</div>
+      </div>
 
       <div className="relative z-10 w-full max-w-md">
         {/* Brand Header */}
-        <div className="text-center mb-8 animate-[framer-fade-in_0.75s_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-white/5 to-white/0 border border-red-500/25 shadow-[0_0_30px_rgba(239,68,68,0.1)] mb-4 w-28 h-28 overflow-hidden select-none">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={springTransition}
+          className="text-center mb-8"
+        >
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-white/5 to-white/0 border border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] mb-4 w-24 h-24 overflow-hidden select-none">
             <img 
               src={theme === 'dark' ? "/images/Markdot logo white.png" : "/images/Markdot logo black.png"} 
               alt="Markdot Intellect" 
               className="w-full h-full object-contain shrink-0" 
             />
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight">
-            <span className="text-slate-100 font-extrabold">Markdot</span>
-            <span className="text-red-500 font-extrabold">Intellect</span>
+          <h1 className="text-3xl font-extrabold tracking-tight font-mono" style={{ letterSpacing: '-1.5px' }}>
+            <span className="opacity-60 font-bold">// MARKDOT_</span>
+            <span className="text-[#ef4444] font-black">CORE</span>
           </h1>
-          <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold opacity-80">Enterprise Management Console</p>
-        </div>
+          <p className="text-[9px] mt-2 uppercase tracking-widest font-mono font-bold opacity-60">TACTICAL DECK SECURITY GATEWAY</p>
+        </motion.div>
 
         {/* Login Card */}
-        <div className="glass-card p-10 rounded-3xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-red-500/50 to-transparent"></div>
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...springTransition, delay: 0.1 }}
+          className="card p-8 rounded-2xl relative overflow-hidden"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border)'
+          }}
+        >
+          <div className="absolute top-2 left-2 text-[8px] font-mono opacity-25">OPERATOR_CONSOLE</div>
+          <div className="absolute top-0 right-0 p-2 text-[8px] font-mono text-cyan-400 opacity-60 flex items-center gap-1">
+            <Binary className="w-3 h-3 animate-pulse" />
+            <span>SECURE_LINK</span>
+          </div>
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent"></div>
           
-          <h2 className="text-[11px] font-bold text-slate-200 mb-6 text-center uppercase tracking-widest">Secure Authorization Gateway</h2>
+          <h2 className="text-[10px] font-bold font-mono mb-6 text-center uppercase tracking-widest pt-2" style={{ color: 'var(--text-secondary)' }}>ENTER CREDENTIALS</h2>
 
-          {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2.5 text-red-400 text-xs">
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-rose-400 font-mono text-[10px] overflow-hidden"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </motion.div>
+            )}
 
-          {success && (
-            <div className="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-2.5 text-emerald-400 text-xs animate-pulse">
-              <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>{success}</span>
-            </div>
-          )}
+            {success && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-5 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-2.5 text-emerald-400 font-mono text-[10px] animate-pulse overflow-hidden"
+              >
+                <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{success}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5" autoComplete="off" data-form-type="other">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Operator ID</label>
+              <label className="block text-[9px] font-bold font-mono uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-secondary)' }}>OPERATOR_ID_CODE</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500">
-                  <UserIcon className="w-4 h-4" />
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <UserIcon className="w-3.5 h-3.5" />
                 </span>
                 <input
                   type="text"
                   required
-                  placeholder="Enter username"
+                  placeholder="USERNAME"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
                   className="framer-input"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Access Key</label>
+              <label className="block text-[9px] font-bold font-mono uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-secondary)' }}>ACCESS_KEYPASS</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500">
-                  <Lock className="w-4 h-4" />
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Lock className="w-3.5 h-3.5" />
                 </span>
                 <input
                   type="password"
@@ -191,79 +235,105 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   className="framer-input"
                 />
               </div>
             </div>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={loading}
-              className="framer-btn bg-gradient-to-r from-red-600 via-red-500 to-red-700 hover:from-red-500 hover:to-red-600 active:scale-[0.98] shadow-[0_0_20px_rgba(239,68,68,0.25)] hover:shadow-[0_0_30px_rgba(239,68,68,0.45)] cursor-pointer"
+              className="framer-btn w-full h-11 bg-[#ef4444] text-[#020204] hover:bg-[#dc2626] font-mono text-[11px] font-extrabold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 border-0"
+              style={{
+                borderRadius: 'var(--radius)',
+                boxShadow: 'var(--shadow-btn)'
+              }}
             >
               {loading ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Authorizing Session...</span>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>AUTHORIZING LINK...</span>
                 </>
               ) : (
-                <span>Verify & Establish Link</span>
+                <>
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>ESTABLISH UPLINK</span>
+                </>
               )}
-            </button>
+            </motion.button>
           </form>
 
-          {/* Quick-Seeding Demo Buttons */}
-          <div className="mt-8 pt-6 border-t border-white/5 dark:border-slate-800/10">
-            <h3 className="text-[9px] font-bold text-slate-500 mb-3.5 uppercase tracking-widest text-center">Quick sandbox profiles</h3>
-            <div className="grid grid-cols-3 gap-2.5">
-              <button
+          {/* Quick-Login Demo Buttons — login API called directly, password never enters the DOM field */}
+          <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--border)' }}>
+            <h3 className="text-[8px] font-bold font-mono text-slate-500 mb-3 uppercase tracking-widest text-center" style={{ color: 'var(--text-muted)' }}>quick access — one-click login</h3>
+            <div className="grid grid-cols-3 gap-2">
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
                 type="button"
-                onClick={() => handleQuickFill('superadmin')}
-                className="sandbox-pill bg-red-500/10 hover:bg-red-500/20 active:scale-[0.96] text-red-400 border border-red-500/15 hover:border-red-500/30 transition-all cursor-pointer tracking-wider"
+                disabled={loading}
+                onClick={() => handleQuickLogin('superadmin')}
+                className="sandbox-pill bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.96] text-rose-400 border border-rose-500/15 hover:border-rose-500/30 transition-all cursor-pointer tracking-wider font-mono text-[9px] h-9 disabled:opacity-40"
               >
-                Super Admin
-              </button>
-              <button
+                SUPERADMIN
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
                 type="button"
-                onClick={() => handleQuickFill('admin')}
-                className="sandbox-pill bg-amber-500/10 hover:bg-amber-500/20 active:scale-[0.96] text-amber-400 border border-amber-500/15 hover:border-amber-500/30 transition-all cursor-pointer tracking-wider"
+                disabled={loading}
+                onClick={() => handleQuickLogin('admin')}
+                className="sandbox-pill bg-amber-500/10 hover:bg-amber-500/20 active:scale-[0.96] text-amber-400 border border-amber-500/15 hover:border-amber-500/30 transition-all cursor-pointer tracking-wider font-mono text-[9px] h-9 disabled:opacity-40"
               >
-                Administrator
-              </button>
-              <button
+                ADMIN
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
                 type="button"
-                onClick={() => handleQuickFill('user')}
-                className="sandbox-pill bg-indigo-500/10 hover:bg-indigo-500/20 active:scale-[0.96] text-indigo-400 border border-indigo-500/15 hover:border-indigo-500/30 transition-all cursor-pointer tracking-wider"
+                disabled={loading}
+                onClick={() => handleQuickLogin('user')}
+                className="sandbox-pill bg-[#ef4444]/10 hover:bg-[#ef4444]/20 active:scale-[0.96] text-[#ef4444] border border-[#ef4444]/15 hover:border-[#ef4444]/30 transition-all cursor-pointer tracking-wider font-mono text-[9px] h-9 disabled:opacity-40"
               >
-                Employee
-              </button>
+                EMPLOYEE
+              </motion.button>
             </div>
           </div>
 
           {/* Reset superadmin option */}
-          <div className="mt-6 text-center">
+          <div className="mt-5 text-center">
             <button
               type="button"
               onClick={handleResetSuperadmin}
               disabled={isResetting}
-              className="text-[10px] text-slate-500 hover:text-red-400 underline underline-offset-4 transition-all cursor-pointer inline-flex items-center gap-1 uppercase tracking-widest font-semibold"
+              className="text-[9px] hover:text-cyan-400 underline underline-offset-4 transition-all cursor-pointer inline-flex items-center gap-1 uppercase tracking-widest font-bold font-mono"
+              style={{ color: 'var(--text-muted)' }}
             >
               {isResetting ? (
                 <>
                   <RefreshCw className="w-3 h-3 animate-spin" />
-                  <span>Resetting Console...</span>
+                  <span>RESETTING DECK...</span>
                 </>
               ) : (
-                <span>Forgot password? Recover Console</span>
+                <span>forgot code? override link</span>
               )}
             </button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Footer */}
-        <p className="text-center text-[10px] text-slate-500 mt-6 tracking-widest uppercase font-semibold animate-[framer-fade-in_0.95s_cubic-bezier(0.16,1,0.3,1)_both]">
-          &copy; 2026 MarkdotIntellect. All rights reserved. Secure RSA-256.
-        </p>
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.5 }}
+          transition={{ delay: 0.2 }}
+          className="text-center text-[9px] mt-6 tracking-widest uppercase font-mono"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          &copy; 2026 MarkdotIntellect. secure core operator link established.
+        </motion.p>
       </div>
     </div>
   );

@@ -167,4 +167,59 @@ router.get('/admin/live', verifyToken, isAdminOrSuperAdmin, async (req, res) => 
   }
 });
 
+// @route   GET /api/clock/admin/payslip-data
+// @desc    Get aggregated timesheet data for a user in a given month/year for payslip generation
+router.get('/admin/payslip-data', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  const { userId, month, year } = req.query;
+
+  if (!userId || !month || !year) {
+    return res.status(400).json({ message: 'userId, month, and year are required' });
+  }
+
+  const monthNum = parseInt(month, 10); // 1-12
+  const yearNum  = parseInt(year,  10);
+
+  const startDate = new Date(yearNum, monthNum - 1, 1);
+  const endDate   = new Date(yearNum, monthNum, 1); // first day of next month
+
+  try {
+    const sessions = await Session.find({
+      userId,
+      clockIn: { $gte: startDate, $lt: endDate },
+      status: 'completed',
+    });
+
+    const employee = await User.findById(userId).select('-password');
+    if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+    let totalMinutes      = 0;
+    let totalOTMinutes    = 0;
+    let totalRegularPay   = 0;
+    let totalOvertimePay  = 0;
+
+    // Count unique working days
+    const workingDaysSet = new Set();
+
+    sessions.forEach((s) => {
+      totalMinutes     += s.duration      || 0;
+      totalOTMinutes   += s.overtimeMinutes || 0;
+      totalRegularPay  += s.regularPay    || 0;
+      totalOvertimePay += s.overtimePay   || 0;
+      workingDaysSet.add(new Date(s.clockIn).toDateString());
+    });
+
+    res.json({
+      employee,
+      totalMinutes,
+      totalOTMinutes,
+      regularPay:   Math.round(totalRegularPay  * 100) / 100,
+      overtimePay:  Math.round(totalOvertimePay * 100) / 100,
+      workingDays:  workingDaysSet.size,
+      sessionCount: sessions.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating payslip data', error: error.message });
+  }
+});
+
 export default router;

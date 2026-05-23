@@ -18,11 +18,17 @@ import {
   Menu,
   Bell,
   Sun,
-  Moon
+  Moon,
+  Binary,
+  Radio,
+  FileText
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { io, Socket } from 'socket.io-client';
 import CallOverlay from '../../components/CallOverlay';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -172,12 +178,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const navItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, role: 'all' },
-    { name: 'Employee Directory', href: '/dashboard/users', icon: Users, role: 'staff' },
-    { name: 'Timesheets', href: '/dashboard/clock', icon: Clock, role: 'all' },
-    { name: 'Leave / Time Off', href: '/dashboard/leaves', icon: Calendar, role: 'all' },
-    { name: 'Task Board', href: '/dashboard/tasks', icon: ClipboardList, role: 'all' },
-    { name: 'Teams & Chat', href: '/dashboard/chat', icon: MessageSquare, role: 'all' },
+    { name: 'Dashboard', index: '01', href: '/dashboard', icon: LayoutDashboard, role: 'all' },
+    { name: 'Colleague Registry', index: '02', href: '/dashboard/users', icon: Users, role: 'staff' },
+    { name: 'Shift Telemetry', index: '03', href: '/dashboard/clock', icon: Clock, role: 'all' },
+    { name: 'Leave logs', index: '04', href: '/dashboard/leaves', icon: Calendar, role: 'all' },
+    { name: 'Operational Board', index: '05', href: '/dashboard/tasks', icon: ClipboardList, role: 'all' },
+    { name: 'Payslip Generator', index: '06', href: '/dashboard/payslip', icon: FileText, role: 'staff' },
+    { name: 'Encrypted Feeds', index: '07', href: '/dashboard/chat', icon: MessageSquare, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link
@@ -191,32 +198,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'superadmin':
-        return <span className="px-2 py-0.5 text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md">Super Admin</span>;
+        return <span className="px-2 py-0.5 text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded font-mono select-none">ROOT_USER</span>;
       case 'admin':
-        return <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md">Admin</span>;
+        return <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-mono select-none">SYS_ADMIN</span>;
       default:
-        return <span className="px-2 py-0.5 text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md">Employee</span>;
+        return <span className="px-2 py-0.5 text-[9px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded font-mono select-none">OPERATOR</span>;
     }
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
+    <div className="min-h-screen flex scanlines cyber-grid-bg" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
       <CallOverlay socket={globalSocket} currentUser={user} />
 
       {/* ── LEFT SIDEBAR (Desktop) ── */}
       <aside
         className={`hidden md:flex flex-col shrink-0 h-screen sticky top-0 transition-all duration-300 ${
           collapsed ? 'w-[72px]' : 'w-[260px]'
-        }`}
+        } select-none`}
         style={{ background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)' }}
       >
         {/* Logo area */}
         <div
-          className="flex items-center justify-between px-4 shrink-0"
+          className="flex items-center justify-between px-4 shrink-0 relative overflow-hidden"
           style={{ height: 'var(--topbar-height)', borderBottom: '1px solid var(--border)' }}
         >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">CONSOLE_UPLINK</div>
           {!collapsed ? (
-            <Link href="/dashboard" className="flex items-center select-none">
+            <Link href="/dashboard" className="flex items-center select-none pt-2">
               <img
                 src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
                 alt="Logo"
@@ -224,7 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               />
             </Link>
           ) : (
-            <div className="mx-auto w-8 h-8 flex items-center justify-center">
+            <div className="mx-auto w-8 h-8 flex items-center justify-center pt-2">
               <img
                 src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
                 alt="Logo"
@@ -234,15 +242,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="btn-icon ml-2 shrink-0"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="btn-icon ml-2 shrink-0 cursor-pointer h-8 w-8"
+            title={collapsed ? 'EXPAND' : 'COLLAPSE'}
           >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {collapsed ? <ChevronRight className="w-4 h-4 text-cyan-400" /> : <ChevronLeft className="w-4 h-4 text-cyan-400" />}
           </button>
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1 relative select-none">
           {navItems.filter(item => canSeeLink(item.role)).map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -250,11 +258,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.name}
                 href={item.href}
-                className={`nav-item ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
+                className={`nav-item relative ${collapsed ? 'justify-center px-0' : ''}`}
+                style={{ color: isActive ? 'var(--brand)' : 'var(--text-secondary)' }}
                 title={collapsed ? item.name : undefined}
               >
-                <Icon className="w-5 h-5 shrink-0" />
-                {!collapsed && <span className="truncate">{item.name}</span>}
+                {isActive && (
+                  <motion.div
+                    layoutId="active-sidebar-indicator"
+                    className="absolute inset-0 rounded -z-10 border"
+                    style={{
+                      backgroundColor: 'var(--brand-subtle)',
+                      borderColor: 'var(--border-strong)'
+                    }}
+                    transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+                  />
+                )}
+                {isActive && !collapsed && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 rounded-r" style={{ backgroundColor: 'var(--brand)' }} />
+                )}
+                <Icon className="w-4 h-4 shrink-0" />
+                {!collapsed && (
+                  <div className="flex-1 flex justify-between items-center text-[12px] font-mono tracking-wide relative z-10">
+                    <span className="truncate">{item.name}</span>
+                    <span className="text-[9px] opacity-35">[{item.index}]</span>
+                  </div>
+                )}
               </Link>
             );
           })}
@@ -265,15 +293,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="shrink-0 p-3" style={{ borderTop: '1px solid var(--border)' }}>
             <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: 'var(--brand-subtle)', border: '1px solid var(--border)' }}
+                className="w-9 h-9 rounded flex items-center justify-center shrink-0 border relative"
+                style={{ background: 'var(--brand-subtle)', borderColor: 'var(--border)' }}
               >
-                <UserIcon className="w-4.5 h-4.5" style={{ color: 'var(--brand)' }} />
+                <div className="absolute top-0 right-0 w-2 h-2 rounded-full bg-emerald-500 animate-pulse border border-zinc-900" />
+                <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
               </div>
               {!collapsed && (
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user.fullName}</p>
-                  <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{user.jobTitle || 'Staff'}</p>
+                <div className="min-w-0 flex-1 select-none">
+                  <p className="text-xs font-mono font-extrabold truncate" style={{ color: 'var(--text-primary)' }}>{user.fullName}</p>
+                  <p className="text-[10px] font-mono truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{user.jobTitle || 'OPERATOR'}</p>
                 </div>
               )}
             </div>
@@ -281,15 +310,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {!collapsed && (
               <div className="mt-3 flex items-center justify-between">
                 {getRoleBadge(user.role)}
-                <button onClick={handleLogout} className="btn-icon btn-icon-danger" title="Logout">
-                  <LogOut className="w-4 h-4" />
+                <button onClick={handleLogout} className="btn-icon btn-icon-danger cursor-pointer h-7 w-7 rounded" title="DISCONNECT">
+                  <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
 
             {collapsed && (
-              <button onClick={handleLogout} className="btn-icon btn-icon-danger w-full mt-3" title="Logout">
-                <LogOut className="w-4 h-4" />
+              <button onClick={handleLogout} className="btn-icon btn-icon-danger w-full mt-3 cursor-pointer h-8 rounded" title="DISCONNECT">
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -301,185 +330,217 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Topbar */}
         <header
-          className="topbar justify-between sticky top-0 z-40"
-          style={{ backdropFilter: 'blur(12px)' }}
+          className="topbar justify-between sticky top-0 z-40 select-none border-b"
+          style={{ borderBottomColor: 'var(--border)', backgroundColor: 'rgba(2, 2, 4, 0.85)' }}
         >
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="btn-icon md:hidden"
+              className="btn-icon md:!hidden cursor-pointer h-9 w-9"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4 text-cyan-400" />
             </button>
-            <h2 className="text-base font-semibold hidden sm:block" style={{ color: 'var(--text-primary)' }}>
-              {navItems.find(item => item.href === pathname)?.name || 'Management Panel'}
+            <h2 className="text-xs font-mono font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-primary)' }}>
+              // CONSOLE_UPLINK: {navItems.find(item => item.href === pathname)?.name || 'DASHBOARD'}
             </h2>
           </div>
 
           <div className="flex items-center gap-3">
             {clockedIn && (
               <div
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold clock-active-glow select-none"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-mono font-bold tracking-wider select-none border"
                 style={{
                   background: 'var(--success-subtle)',
                   color: 'var(--success)',
-                  border: '1px solid rgba(16,185,129,0.2)',
+                  borderColor: 'rgba(16,185,129,0.3)',
                 }}
               >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                <span>SHIFT ACTIVE</span>
+                <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                <span>ACTIVE_SHIFT</span>
               </div>
             )}
 
             <div
-              className="px-3 py-1.5 rounded-lg font-mono text-sm select-none hidden sm:block"
+              className="px-2.5 py-1 rounded font-mono text-[11px] font-bold select-none hidden sm:block border"
               style={{
                 background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
+                borderColor: 'var(--border)',
                 color: 'var(--text-secondary)',
-                letterSpacing: '0.05em',
               }}
             >
-              {timeString}
+              UPLINK_TIME: {timeString}
             </div>
 
-            <div className="relative">
-              <button 
-                className="btn-icon relative" 
-                title="Notifications"
+            <div className="relative shrink-0 flex items-center">
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="btn-icon relative cursor-pointer h-9 w-9" 
+                title="SYS_ALERTS"
                 onClick={() => setShowNotifications(!showNotifications)}
               >
-                <Bell className="w-4.5 h-4.5" />
+                <Bell className="w-4 h-4 text-cyan-400" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                  <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] font-mono font-extrabold flex items-center justify-center animate-pulse">
+                    {unreadCount}
                   </span>
                 )}
-              </button>
+              </motion.button>
 
-              {showNotifications && (
-                <div 
-                  className="absolute top-full right-0 mt-3 w-80 rounded-2xl shadow-2xl z-50 overflow-hidden border border-white/10 anim-fade-up"
-                  style={{ background: 'var(--bg-elevated)' }}
-                >
-                  <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                    <h3 className="font-bold text-sm">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <button onClick={markAllRead} className="text-xs text-brand hover:underline">Mark all read</button>
-                    )}
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-slate-500">No new notifications</div>
-                    ) : (
-                      notifications.map(n => (
-                        <div 
-                          key={n._id} 
-                          onClick={() => {
-                            if (!n.isRead) markNotificationRead(n._id);
-                            if (n.link) router.push(n.link);
-                            setShowNotifications(false);
-                          }}
-                          className={`p-4 border-b border-white/5 cursor-pointer transition-colors hover:bg-white/5 ${!n.isRead ? 'bg-brand/5' : ''}`}
-                        >
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold truncate pr-2">{n.title}</span>
-                            {!n.isRead && <span className="w-2 h-2 rounded-full bg-brand shrink-0"></span>}
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                    transition={springTransition}
+                    className="absolute top-full right-0 mt-3 rounded-xl shadow-2xl z-50 overflow-hidden border"
+                    style={{ 
+                      display: 'flex',
+                      flexDirection: 'column',
+                      width: '320px',
+                      minWidth: '320px',
+                      backgroundColor: 'var(--bg-elevated)', 
+                      borderColor: 'var(--border-strong)',
+                      boxShadow: '0 0 30px rgba(6, 182, 212, 0.15)'
+                    }}
+                  >
+                    <div className="p-3.5 flex items-center justify-between shrink-0 font-mono text-[10px] font-extrabold uppercase border-b" style={{ borderColor: 'var(--border)' }}>
+                      <span className="text-cyan-400">// SECURITY_FEEDS</span>
+                      {unreadCount > 0 && (
+                        <button onClick={markAllRead} className="text-[9px] text-[#f43f5e] hover:underline cursor-pointer">CLEAR_ALL</button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto flex-1 font-mono text-[10px]">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-slate-500 italic select-none">NO ACTIVE LOGS</div>
+                      ) : (
+                        notifications.map(n => (
+                          <div 
+                            key={n._id} 
+                            onClick={() => {
+                              if (!n.isRead) markNotificationRead(n._id);
+                              if (n.link) router.push(n.link);
+                              setShowNotifications(false);
+                            }}
+                            className="p-3.5 cursor-pointer transition-all border-b hover:bg-cyan-500/5 select-none"
+                            style={{ borderColor: 'var(--border)' }}
+                          >
+                            <div className="flex justify-between items-start mb-1 gap-2">
+                              <span className="font-bold truncate flex-1" style={{ color: 'var(--text-primary)' }}>{n.title}</span>
+                              {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse"></span>}
+                            </div>
+                            <p className="text-[9px] line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
                           </div>
-                          <p className="text-xs text-slate-400 line-clamp-2">{n.message}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={toggleTheme}
-              className="btn-icon"
-              title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              className="btn-icon cursor-pointer h-9 w-9"
+              title={theme === 'dark' ? 'LIGHT_DECK' : 'DARK_DECK'}
             >
-              {theme === 'dark' ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
-            </button>
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-cyan-400" /> : <Moon className="w-4 h-4 text-teal-600" />}
+            </motion.button>
           </div>
         </header>
 
         {/* Mobile Nav Drawer */}
-        {mobileOpen && (
-          <div
-            className="fixed inset-0 z-50 md:hidden"
-            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-            onClick={() => setMobileOpen(false)}
-          >
-            <aside
-              className="w-64 h-screen flex flex-col max-w-[85vw]"
-              style={{ background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div
-                className="flex items-center justify-between px-5 shrink-0"
-                style={{ height: 'var(--topbar-height)', borderBottom: '1px solid var(--border)' }}
+        <AnimatePresence>
+          {mobileOpen && (
+            <div className="fixed inset-0 z-50 md:hidden">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0"
+                style={{ background: 'rgba(2,2,4,0.7)', backdropFilter: 'blur(4px)' }}
+                onClick={() => setMobileOpen(false)}
+              />
+              
+              {/* Drawer Container */}
+              <motion.aside
+                initial={{ x: -280 }}
+                animate={{ x: 0 }}
+                exit={{ x: -280 }}
+                transition={springTransition}
+                className="absolute left-0 top-0 w-64 h-screen flex flex-col max-w-[85vw] shadow-2xl z-10 border-r"
+                style={{ background: 'var(--bg-subtle)', borderColor: 'var(--border)' }}
               >
-                <img
-                  src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
-                  alt="Logo"
-                  className="h-8 object-contain"
-                />
-                <button onClick={() => setMobileOpen(false)} className="btn-icon">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              </div>
-              <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
-                {navItems.filter(item => canSeeLink(item.role)).map((item) => {
-                  const isActive = pathname === item.href;
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`nav-item ${isActive ? 'active' : ''}`}
-                    >
-                      <Icon className="w-5 h-5 shrink-0" />
-                      <span>{item.name}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-              {user && (
-                <div className="p-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: 'var(--brand-subtle)', border: '1px solid var(--border)' }}
-                    >
-                      <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user.fullName}</p>
-                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user.jobTitle || 'Staff'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    {getRoleBadge(user.role)}
-                    <button onClick={handleLogout} className="btn-icon btn-icon-danger" title="Logout">
-                      <LogOut className="w-4 h-4" />
-                    </button>
-                  </div>
+                <div
+                  className="flex items-center justify-between px-5 shrink-0"
+                  style={{ height: 'var(--topbar-height)', borderBottom: '1px solid var(--border)' }}
+                >
+                  <img
+                    src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
+                    alt="Logo"
+                    className="h-8 object-contain"
+                  />
+                  <button onClick={() => setMobileOpen(false)} className="btn-icon cursor-pointer h-9 w-9">
+                    <ChevronLeft className="w-4 h-4 text-cyan-400" />
+                  </button>
                 </div>
-              )}
-            </aside>
-          </div>
-        )}
+                <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1.5 select-none">
+                  {navItems.filter(item => canSeeLink(item.role)).map((item) => {
+                    const isActive = pathname === item.href;
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={`nav-item relative ${isActive ? 'active' : ''}`}
+                        style={{ color: isActive ? 'var(--brand)' : 'var(--text-secondary)' }}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <div className="flex-1 flex justify-between items-center text-[12px] font-mono">
+                          <span>{item.name}</span>
+                          <span className="text-[9px] opacity-35">[{item.index}]</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </nav>
+                {user && (
+                  <div className="p-4 shrink-0 border-t" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div
+                        className="w-9 h-9 rounded flex items-center justify-center shrink-0 border"
+                        style={{ background: 'var(--brand-subtle)', border: '1px solid var(--border)' }}
+                      >
+                        <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                      </div>
+                      <div className="min-w-0 font-mono">
+                        <p className="text-xs font-extrabold truncate" style={{ color: 'var(--text-primary)' }}>{user.fullName}</p>
+                        <p className="text-[9px] truncate" style={{ color: 'var(--text-muted)' }}>{user.jobTitle || 'OPERATOR'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      {getRoleBadge(user.role)}
+                      <button onClick={handleLogout} className="btn-icon btn-icon-danger cursor-pointer h-7 w-7 rounded" title="DISCONNECT">
+                        <LogOut className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.aside>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Page content */}
-        <main className="flex-1 p-8 relative z-0">
+        <main className="flex-1 relative z-0 py-8 px-6 sm:px-12 md:px-16 lg:px-20 xl:px-24">
           {children}
         </main>
       </div>
     </div>
   );
 }
-
-
