@@ -611,3 +611,101 @@ body.light .topbar {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
 }
+
+/* =====================================================
+   LIGHT MODE READABILITY OVERRIDES FOR GREY CARDS
+   ==================================================== */
+body.light [class*="bg-zinc-950"],
+body.light [class*="bg-zinc-900"],
+body.light [class*="bg-slate-950"],
+body.light [class*="bg-slate-900"] {
+  color: #f8fafc !important;
+}
+
+body.light [class*="bg-zinc-950"] .text-slate-100,
+body.light [class*="bg-zinc-950"] .text-slate-200,
+body.light [class*="bg-zinc-950"] .text-slate-300,
+body.light [class*="bg-zinc-950"] .text-slate-400,
+body.light [class*="bg-zinc-950"] .text-slate-500,
+body.light [class*="bg-zinc-900"] .text-slate-100,
+body.light [class*="bg-zinc-900"] .text-slate-200,
+body.light [class*="bg-zinc-900"] .text-slate-300,
+body.light [class*="bg-zinc-900"] .text-slate-400,
+body.light [class*="bg-zinc-900"] .text-slate-500,
+body.light [class*="bg-slate-950"] .text-slate-100,
+body.light [class*="bg-slate-950"] .text-slate-200,
+body.light [class*="bg-slate-950"] .text-slate-300,
+body.light [class*="bg-slate-950"] .text-slate-400,
+body.light [class*="bg-slate-950"] .text-slate-500,
+body.light [class*="bg-slate-900"] .text-slate-100,
+body.light [class*="bg-slate-900"] .text-slate-200,
+body.light [class*="bg-slate-900"] .text-slate-300,
+body.light [class*="bg-slate-900"] .text-slate-400,
+body.light [class*="bg-slate-900"] .text-slate-500 {
+  color: #e2e8f0 !important;
+}
+
+body.light [class*="bg-zinc-950"] .text-white,
+body.light [class*="bg-zinc-900"] .text-white,
+body.light [class*="bg-slate-950"] .text-white,
+body.light [class*="bg-slate-900"] .text-white {
+  color: #ffffff !important;
+}
+
+/* Ensure task cards inside kanban columns correctly inherit dark text in light mode */
+body.light .kanban-col .card *,
+body.light .kanban-col .glass-card * {
+  color: inherit !important;
+}
+
+
+/* =====================================================
+   GLOBAL RESPONSIVENESS AND TABLE WRAPPERS
+   ===================================================== */
+/* Automatically make all tables inside standard wrappers responsive on smaller viewports */
+@media (max-width: 1024px) {
+  /* Prevent side-by-side flex or grid from breaking layouts on tablet */
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Horizontal table scroll support */
+  table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Full screen collapse for grids */
+  .grid-cols-4, .grid-cols-3, .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Add padding to prevent tight edge cards */
+  main {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Roster historical or telemetry columns */
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Ensure grey buttons (secondary, icons, tabs) maintain light/white text in light mode */
+body.light .btn-secondary,
+body.light .btn-icon,
+body.light .tab-btn {
+  color: #cbd5e1 !important;
+}
+
+body.light .btn-secondary:hover,
+body.light .btn-icon:hover,
+body.light .tab-btn:hover {
+  color: #ffffff !important;
+}

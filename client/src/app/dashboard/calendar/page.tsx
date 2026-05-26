@@ -12,7 +12,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  Trash2
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -134,6 +135,16 @@ export default function MeetingCalendarHub() {
     }
   };
 
+  const handleDeleteMeeting = async (id: string) => {
+    if (!confirm('CONFIRM DE-ORBIT / REMOVAL OF THIS SCHEDULED MEETING NODE?')) return;
+    try {
+      await apiRequest(`/meetings/${id}`, { method: 'DELETE' });
+      fetchCalendarData();
+    } catch (err: any) {
+      alert(err.message || 'Error deleting meeting node.');
+    }
+  };
+
   // Calendar Helpers
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
@@ -215,79 +226,89 @@ export default function MeetingCalendarHub() {
             <div className="flex gap-2">
               <button
                 onClick={handlePrevMonth}
-                className="btn btn-secondary w-8 h-8 p-0 flex items-center justify-center cursor-pointer"
+                className="btn btn-secondary h-8 px-2.5 flex items-center gap-1.5 cursor-pointer text-[10px]"
+                title="PREVIOUS MONTH"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>PREV</span>
               </button>
               <button
                 onClick={handleNextMonth}
-                className="btn btn-secondary w-8 h-8 p-0 flex items-center justify-center cursor-pointer"
+                className="btn btn-secondary h-8 px-2.5 flex items-center gap-1.5 cursor-pointer text-[10px]"
+                title="NEXT MONTH"
               >
-                <ChevronRight className="w-4 h-4" />
+                <span>NEXT</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Grid Layout */}
-          <div className="grid grid-cols-7 gap-2.5 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b pb-3" style={{ borderColor: 'var(--border)' }}>
-            <div>Sun</div>
-            <div>Mon</div>
-            <div>Tue</div>
-            <div>Wed</div>
-            <div>Thu</div>
-            <div>Fri</div>
-            <div>Sat</div>
-          </div>
 
-          <div className="grid grid-cols-7 gap-2 flex-grow min-h-[360px]">
-            {/* Empty slots for offset */}
-            {Array.from({ length: firstDayIndex }).map((_, i) => (
-              <div key={`empty-${i}`} className="p-2 border border-transparent opacity-10 bg-zinc-950/20 rounded" />
-            ))}
+          {/* Fully auto-scaling calendar grid, optimized for zero scrollbars on mobile viewports */}
+          <div className="w-full flex flex-col">
+            {/* Grid Layout */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2.5 text-center text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b pb-3" style={{ borderColor: 'var(--border)' }}>
+              <div>Sun</div>
+              <div>Mon</div>
+              <div>Tue</div>
+              <div>Wed</div>
+              <div>Thu</div>
+              <div>Fri</div>
+              <div>Sat</div>
+            </div>
 
-            {/* Days slots */}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const dayMeets = getMeetingsForDay(day);
-              const isToday =
-                day === new Date().getDate() &&
-                currentDate.getMonth() === new Date().getMonth() &&
-                currentDate.getFullYear() === new Date().getFullYear();
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 flex-grow min-h-[280px] sm:min-h-[360px]">
+              {/* Empty slots for offset */}
+              {Array.from({ length: firstDayIndex }).map((_, i) => (
+                <div key={`empty-${i}`} className="p-1 sm:p-2 border border-transparent opacity-10 bg-zinc-950/20 rounded" />
+              ))}
 
-              return (
-                <div
-                  key={`day-${day}`}
-                  className="p-2 rounded border flex flex-col justify-between items-stretch min-h-[64px] transition-all bg-zinc-950/40 relative"
-                  style={{
-                    borderColor: isToday ? 'var(--brand)' : 'var(--border)',
-                  }}
-                >
-                  <span className={`text-[10px] font-bold self-start ${isToday ? 'text-cyan-400' : 'text-slate-400'}`}>
-                    {day}
-                  </span>
-                  
-                  <div className="space-y-1 mt-1">
-                    {dayMeets.slice(0, 2).map((m) => (
-                      <div
-                        key={m._id}
-                        onClick={() => router.push(`/dashboard/meet/${m.meetingId}`)}
-                        className="px-1.5 py-0.5 rounded text-[8px] font-bold truncate block bg-[#ef4444]/10 border border-[#ef4444]/20 hover:border-[#ef4444]/65 text-[#ef4444] cursor-pointer"
-                        title={m.title}
-                      >
-                        {m.title.toUpperCase()}
-                      </div>
-                    ))}
-                    {dayMeets.length > 2 && (
-                      <span className="text-[7px] text-slate-600 block text-right font-extrabold">
-                        +{dayMeets.length - 2} MORE
-                      </span>
-                    )}
+              {/* Days slots */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const dayMeets = getMeetingsForDay(day);
+                const isToday =
+                  day === new Date().getDate() &&
+                  currentDate.getMonth() === new Date().getMonth() &&
+                  currentDate.getFullYear() === new Date().getFullYear();
+
+                return (
+                  <div
+                    key={`day-${day}`}
+                    className="p-1 sm:p-2 rounded border flex flex-col justify-between items-stretch min-h-[44px] sm:min-h-[64px] transition-all bg-zinc-950/40 relative"
+                    style={{
+                      borderColor: isToday ? 'var(--brand)' : 'var(--border)',
+                    }}
+                  >
+                    <span className={`text-[8px] sm:text-[10px] font-bold self-start ${isToday ? 'text-cyan-400' : 'text-slate-400'}`}>
+                      {day}
+                    </span>
+                    
+                    <div className="space-y-0.5 sm:space-y-1 mt-0.5 sm:mt-1">
+                      {dayMeets.slice(0, 2).map((m) => (
+                        <div
+                          key={m._id}
+                          onClick={() => router.push(`/dashboard/meet/${m.meetingId}`)}
+                          className="px-0.5 sm:px-1.5 py-0.5 rounded text-[6px] sm:text-[8px] font-bold truncate block bg-[#ef4444]/10 border border-[#ef4444]/20 hover:border-[#ef4444]/65 text-[#ef4444] cursor-pointer"
+                          title={m.title}
+                        >
+                          {m.title.toUpperCase()}
+                        </div>
+                      ))}
+                      {dayMeets.length > 2 && (
+                        <span className="text-[5px] sm:text-[7px] text-slate-600 block text-right font-extrabold">
+                          +{dayMeets.length - 2}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
+
         </div>
+
 
         {/* Scheduled Meets List card */}
         <div className="card flex flex-col p-6 h-fit max-h-[520px]" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
@@ -303,8 +324,12 @@ export default function MeetingCalendarHub() {
               </p>
             ) : (
               meetings.map((m) => {
-                const startTimeStr = new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const creatorId = m.createdBy?._id || m.createdBy?.id || m.createdBy;
+                const currentUserId = currentUser?._id || currentUser?.id;
+                const isCreator = creatorId === currentUserId;
                 const dateStr = new Date(m.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const startTimeStr = new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
                 return (
                   <div
                     key={m._id}
@@ -326,9 +351,19 @@ export default function MeetingCalendarHub() {
                         {startTimeStr}
                       </span>
 
+                      {isCreator && (
+                        <button
+                          onClick={() => handleDeleteMeeting(m._id)}
+                          className="p-1 rounded hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 border border-transparent hover:border-rose-500/20 cursor-pointer ml-auto mr-1.5 transition-colors"
+                          title="Delete Scheduled Meeting"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
                       <button
                         onClick={() => router.push(`/dashboard/meet/${m.meetingId}`)}
-                        className="py-1 px-3 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
+                        className={`py-1 px-3 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all ${!isCreator ? 'ml-auto' : ''}`}
                       >
                         JOIN MEET
                       </button>
@@ -425,25 +460,32 @@ export default function MeetingCalendarHub() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="form-group">
                         <label className="form-label">LAUNCH TIMESTAMP *</label>
-                        <input
-                          type="datetime-local"
-                          required
-                          value={startTime}
-                          onChange={(e) => setStartTime(e.target.value)}
-                          className="input"
-                        />
+                        <div className="relative">
+                          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                          <input
+                            type="datetime-local"
+                            required
+                            value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className="input pl-9"
+                          />
+                        </div>
                       </div>
                       <div className="form-group">
                         <label className="form-label">CONCLUSION TIMESTAMP *</label>
-                        <input
-                          type="datetime-local"
-                          required
-                          value={endTime}
-                          onChange={(e) => setEndTime(e.target.value)}
-                          className="input"
-                        />
+                        <div className="relative">
+                          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                          <input
+                            type="datetime-local"
+                            required
+                            value={endTime}
+                            onChange={(e) => setEndTime(e.target.value)}
+                            className="input pl-9"
+                          />
+                        </div>
                       </div>
                     </div>
+
 
                     {/* Invites checklist */}
                     <div className="border-t pt-3.5" style={{ borderColor: 'var(--border)' }}>

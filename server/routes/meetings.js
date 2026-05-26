@@ -98,4 +98,26 @@ router.get('/:meetingId', verifyToken, async (req, res) => {
   }
 });
 
+// @route   DELETE /api/meetings/:id
+// @desc    Delete a meeting by MongoDB ID (only by the creator)
+router.delete('/:id', verifyToken, async (req, res) => {
+  try {
+    const meeting = await Meeting.findById(req.params.id);
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting node not found.' });
+    }
+
+    // Check if the current user is the creator
+    if (meeting.createdBy.toString() !== req.user.userId) {
+      return res.status(403).json({ message: 'Access denied. Only the meeting scheduler can delete this node.' });
+    }
+
+    await Meeting.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Meeting node successfully de-orbited and cleared from registry.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting meeting node.', error: error.message });
+  }
+});
+
 export default router;
+

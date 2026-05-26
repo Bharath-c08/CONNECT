@@ -15,7 +15,8 @@ import {
   AlertCircle,
   CheckCircle,
   Shield,
-  Droplet
+  Droplet,
+  Calendar
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -210,7 +211,10 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label mb-1">DATE OF BIRTH</label>
-                    <input type="date" name="dob" value={formData.dob} onChange={handleInputChange} className="input" />
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      <input type="date" name="dob" value={formData.dob} onChange={handleInputChange} className="input pl-9" />
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label mb-1">GENDER</label>

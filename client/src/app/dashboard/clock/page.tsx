@@ -476,23 +476,30 @@ export default function TimesheetsPage() {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">FROM TIMESTAMP</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="input"
-            />
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="input pl-9"
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">TO TIMESTAMP</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="input"
-            />
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="input pl-9"
+              />
+            </div>
           </div>
+
 
           <div className="flex items-end gap-2">
             <motion.button

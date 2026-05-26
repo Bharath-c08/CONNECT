@@ -759,27 +759,34 @@ export default function LeavesPlannerPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label mb-1">Disconnect Date *</label>
-                    <input
-                      type="date"
-                      required
-                      name="startDate"
-                      value={formData.startDate}
-                      onChange={handleInputChange}
-                      className="input"
-                    />
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      <input
+                        type="date"
+                        required
+                        name="startDate"
+                        value={formData.startDate}
+                        onChange={handleInputChange}
+                        className="input pl-9"
+                      />
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label mb-1">Return Date *</label>
-                    <input
-                      type="date"
-                      required
-                      name="endDate"
-                      value={formData.endDate}
-                      onChange={handleInputChange}
-                      className="input"
-                    />
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      <input
+                        type="date"
+                        required
+                        name="endDate"
+                        value={formData.endDate}
+                        onChange={handleInputChange}
+                        className="input pl-9"
+                      />
+                    </div>
                   </div>
                 </div>
+
 
                 <div className="form-group">
                   <label className="form-label mb-1">Override Rationale / Reason</label>

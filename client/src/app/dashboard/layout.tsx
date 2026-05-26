@@ -259,12 +259,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         {/* Logo area */}
         <div
-          className="flex items-center justify-between px-4 shrink-0 relative overflow-hidden"
+          className="flex items-center shrink-0 relative overflow-hidden"
           style={{ height: 'var(--topbar-height)', borderBottom: '1px solid var(--border)' }}
         >
           <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">CONSOLE_UPLINK</div>
           {!collapsed ? (
-            <Link href="/dashboard" className="flex items-center select-none pt-2">
+            <Link href="/dashboard" className="flex items-center select-none pt-2 pl-8">
               <img
                 src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
                 alt="Logo"
@@ -282,7 +282,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="btn-icon ml-2 shrink-0 cursor-pointer h-8 w-8"
+            className={`btn-icon shrink-0 cursor-pointer h-8 w-8 z-10 ${collapsed ? 'relative mx-auto pt-0 mt-2' : 'absolute right-4 top-1/2 -translate-y-1/2 mt-1'}`}
             title={collapsed ? 'EXPAND' : 'COLLAPSE'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4 text-cyan-400" /> : <ChevronLeft className="w-4 h-4 text-cyan-400" />}
@@ -524,15 +524,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 style={{ background: 'var(--bg-subtle)', borderColor: 'var(--border)' }}
               >
                 <div
-                  className="flex items-center justify-between px-5 shrink-0"
+                  className="flex items-center shrink-0 relative"
                   style={{ height: 'var(--topbar-height)', borderBottom: '1px solid var(--border)' }}
                 >
-                  <img
-                    src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
-                    alt="Logo"
-                    className="h-8 object-contain"
-                  />
-                  <button onClick={() => setMobileOpen(false)} className="btn-icon cursor-pointer h-9 w-9">
+                  <Link href="/dashboard" className="flex items-center select-none pt-2 pl-8">
+                    <img
+                      src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
+                      alt="Logo"
+                      className="h-8 object-contain"
+                    />
+                  </Link>
+                  <button onClick={() => setMobileOpen(false)} className="btn-icon cursor-pointer h-9 w-9 absolute right-5 top-1/2 -translate-y-1/2 mt-1 z-10">
                     <ChevronLeft className="w-4 h-4 text-cyan-400" />
                   </button>
                 </div>
