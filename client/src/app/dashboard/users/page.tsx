@@ -43,6 +43,49 @@ const cardVariants = {
   show: { opacity: 1, y: 0, scale: 1, transition: springTransition }
 };
 
+const parseCSV = (text: string) => {
+  const lines: string[][] = [];
+  let row: string[] = [];
+  let inQuotes = false;
+  let currentVal = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentVal += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      row.push(currentVal.trim());
+      currentVal = '';
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      row.push(currentVal.trim());
+      if (row.length > 0 && row.some(cell => cell !== '')) {
+        lines.push(row);
+      }
+      row = [];
+      currentVal = '';
+    } else {
+      currentVal += char;
+    }
+  }
+  if (currentVal || row.length > 0) {
+    row.push(currentVal.trim());
+    if (row.some(cell => cell !== '')) {
+      lines.push(row);
+    }
+  }
+  return lines;
+};
+
 export default function UserDirectoryPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -59,6 +102,128 @@ export default function UserDirectoryPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  // Import modal state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importError, setImportError] = useState('');
+  const [importSuccess, setImportSuccess] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+
+  const handleDownloadSample = () => {
+    const csvContent = 
+      "username,password,fullName,email,employeeId,jobTitle,employmentType,basicPay,phone,joiningDate,role\n" +
+      "john_doe,Password123,John Doe,john@example.com,EMP001,Junior Operator,fulltime,45000,9876543210,2026-05-01,user\n" +
+      "alice_smith,Password123,Alice Smith,alice@example.com,EMP002,Senior Auditor,fulltime,75000,9876543211,2026-05-15,user";
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "operator_import_sample.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFile(file);
+    setImportError('');
+    setImportSuccess('');
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      try {
+        const rows = parseCSV(text);
+        if (rows.length < 2) {
+          setImportError('Empty or invalid CSV spreadsheet file structure.');
+          return;
+        }
+
+        const headers = rows[0].map((h: string) => h.trim().toLowerCase());
+        
+        // Validate required headers
+        const required = ['username', 'password', 'fullname', 'email', 'employeeid'];
+        const missing = required.filter(field => !headers.includes(field));
+        if (missing.length > 0) {
+          setImportError(`Missing required column headers: ${missing.join(', ')}.`);
+          return;
+        }
+
+        const parsedUsers = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length < headers.length) continue; // skip incomplete rows
+
+          const userObj: any = {};
+          headers.forEach((header, index) => {
+            let val: any = row[index];
+            if (header === 'basicpay' || header === 'overtimepayperminute') {
+              val = Number(val) || 0;
+            } else if (header === 'overtimeeligible') {
+              val = val === 'true' || val === '1';
+            }
+            const keyMap: any = {
+              username: 'username',
+              password: 'password',
+              fullname: 'fullName',
+              email: 'email',
+              employeeid: 'employeeId',
+              jobtitle: 'jobTitle',
+              employmenttype: 'employmentType',
+              basicpay: 'basicPay',
+              phone: 'phone',
+              joiningdate: 'joiningDate',
+              role: 'role'
+            };
+            const mappedKey = keyMap[header] || header;
+            userObj[mappedKey] = val;
+          });
+          parsedUsers.push(userObj);
+        }
+
+        if (parsedUsers.length === 0) {
+          setImportError('No valid operator rows detected.');
+        } else {
+          setImportPreview(parsedUsers);
+        }
+      } catch (err: any) {
+        setImportError('Error parsing CSV file: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportSubmit = async () => {
+    if (importPreview.length === 0) return;
+    setImportLoading(true);
+    setImportError('');
+    setImportSuccess('');
+
+    try {
+      const res = await apiRequest('/users/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ users: importPreview })
+      });
+
+      setImportSuccess(res.message);
+      fetchUsers();
+      
+      // Clear file
+      setImportFile(null);
+      setImportPreview([]);
+    } catch (err: any) {
+      setImportError(err.message || 'Error executing batch import.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
 
   // Export modal state
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -396,6 +561,20 @@ export default function UserDirectoryPage() {
           >
             <Download className="w-4 h-4" />
             EXPORT
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setImportFile(null);
+              setImportPreview([]);
+              setImportError('');
+              setImportSuccess('');
+              setImportModalOpen(true);
+            }}
+            className="btn btn-secondary cursor-pointer flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4 text-emerald-400" />
+            IMPORT
           </motion.button>
           <motion.button 
             whileTap={{ scale: 0.98 }}
@@ -1010,6 +1189,143 @@ export default function UserDirectoryPage() {
                   <Download className="w-3.5 h-3.5" />
                   GENERATE {exportFormat.toUpperCase()}
                 </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Import Modal ────────────────────────────────── */}
+      <AnimatePresence>
+        {importModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={springTransition}
+              className="relative w-full max-w-xl rounded-xl overflow-hidden font-mono"
+              style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
+            >
+              {/* top accent */}
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#ef4444]/40 to-transparent" />
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center gap-2.5">
+                  <Binary className="w-4 h-4 text-[#ef4444]" />
+                  <h2 className="text-xs font-extrabold uppercase tracking-widest text-white">Import Operators Registry</h2>
+                </div>
+                <button onClick={() => setImportModalOpen(false)} className="btn-icon w-7 h-7 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {importSuccess && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] uppercase font-extrabold tracking-wider">
+                    // SUCCESS: {importSuccess}
+                  </div>
+                )}
+
+                {importError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded text-[10px] uppercase font-extrabold tracking-wider">
+                    // ERROR: {importError}
+                  </div>
+                )}
+
+                {/* Info & Sample Download */}
+                <div className="p-4 bg-zinc-950/40 rounded border border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ borderColor: 'var(--border)' }}>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">Template File Format</h4>
+                    <p className="text-[9px] text-slate-500 mt-1 leading-relaxed uppercase">
+                      Spreads must contain headers: username, password, fullName, email, employeeId, jobTitle, basicPay.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSample}
+                    className="btn btn-secondary h-8 px-3 text-[9px] font-bold cursor-pointer shrink-0 flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    DOWNLOAD SAMPLE
+                  </button>
+                </div>
+
+                {/* File Select */}
+                {!importSuccess && (
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Select Spreadsheet File (.csv)</label>
+                    <div className="relative border border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all" style={{ borderColor: 'var(--border)' }}>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                      <FileText className="w-6 h-6 text-slate-500 animate-pulse" />
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                        {importFile ? importFile.name : 'CHOOSE FILE OR DRAG & DROP HERE'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview Table */}
+                {importPreview.length > 0 && !importSuccess && (
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Parsed Rows Preview ({importPreview.length} total)</label>
+                    <div className="max-h-40 overflow-y-auto border rounded border-white/5 scrollbar-thin" style={{ borderColor: 'var(--border)' }}>
+                      <table className="min-w-full divide-y divide-white/5 text-[9px]" style={{ borderColor: 'var(--border)' }}>
+                        <thead className="bg-zinc-950/60 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-bold text-slate-400">ID</th>
+                            <th className="px-3 py-2 text-left font-bold text-slate-400">NAME</th>
+                            <th className="px-3 py-2 text-left font-bold text-slate-400">EMAIL</th>
+                            <th className="px-3 py-2 text-left font-bold text-slate-400">TITLE</th>
+                            <th className="px-3 py-2 text-left font-bold text-slate-400">PAY</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 bg-zinc-950/20" style={{ borderColor: 'var(--border)' }}>
+                          {importPreview.slice(0, 5).map((u, i) => (
+                            <tr key={i}>
+                              <td className="px-3 py-2 text-slate-300 font-mono">{u.employeeId}</td>
+                              <td className="px-3 py-2 text-white font-bold">{u.fullName}</td>
+                              <td className="px-3 py-2 text-slate-400 truncate">{u.email}</td>
+                              <td className="px-3 py-2 text-slate-400 truncate">{u.jobTitle || '—'}</td>
+                              <td className="px-3 py-2 text-emerald-400 font-bold">₹{u.basicPay || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="modal-footer px-6 pb-5 pt-4 border-t flex items-center justify-end gap-3 select-none" style={{ borderColor: 'var(--border)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportModalOpen(false);
+                    setImportFile(null);
+                    setImportPreview([]);
+                  }}
+                  className="btn btn-secondary h-9 text-[10px] cursor-pointer"
+                >
+                  {importSuccess ? 'CLOSE' : 'CANCEL'}
+                </button>
+                {importPreview.length > 0 && !importSuccess && (
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleImportSubmit}
+                    disabled={importLoading}
+                    className="btn btn-primary h-9 text-[10px] font-extrabold cursor-pointer flex items-center gap-2 border-0"
+                  >
+                    {importLoading ? 'IMPORTING...' : 'COMMIT BATCH IMPORT'}
+                  </motion.button>
+                )}
               </div>
             </motion.div>
           </div>

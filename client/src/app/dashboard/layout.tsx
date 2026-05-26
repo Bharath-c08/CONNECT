@@ -207,6 +207,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  const clearAllNotifications = async () => {
+    try {
+      await apiRequest('/notifications/my/clear', { method: 'DELETE' });
+      setNotifications([]);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   if (!hydrated) return null;
@@ -445,8 +454,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   >
                     <div className="p-3.5 flex items-center justify-between shrink-0 font-mono text-[10px] font-extrabold uppercase border-b" style={{ borderColor: 'var(--border)' }}>
                       <span className="text-cyan-400">// SECURITY_FEEDS</span>
-                      {unreadCount > 0 && (
-                        <button onClick={markAllRead} className="text-[9px] text-[#f43f5e] hover:underline cursor-pointer">CLEAR_ALL</button>
+                      {notifications.length > 0 && (
+                        <button onClick={clearAllNotifications} className="text-[9px] text-[#f43f5e] hover:underline cursor-pointer">CLEAR_ALL</button>
                       )}
                     </div>
                     <div className="max-h-80 overflow-y-auto flex-1 font-mono text-[10px]">

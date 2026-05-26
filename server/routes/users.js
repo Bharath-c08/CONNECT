@@ -206,4 +206,111 @@ router.delete('/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   }
 });
 
+// @route   POST /api/users/import
+// @desc    Import multiple employees from an array (Only Super Admin and Admins)
+router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  const { users } = req.body;
+
+  if (!users || !Array.isArray(users) || users.length === 0) {
+    return res.status(400).json({ message: 'Please provide a non-empty array of users under the "users" field.' });
+  }
+
+  const results = {
+    successCount: 0,
+    failCount: 0,
+    errors: []
+  };
+
+  for (const userObj of users) {
+    const {
+      username,
+      password,
+      role,
+      fullName,
+      dob,
+      gender,
+      address,
+      phone,
+      email,
+      jobTitle,
+      joiningDate,
+      employmentType,
+      employeeId,
+      basicPay,
+      overtimeEligible,
+      overtimePayPerMinute,
+    } = userObj;
+
+    // Required fields validation
+    if (!username || !password || !fullName || !email || !employeeId) {
+      results.failCount++;
+      results.errors.push({
+        identifier: username || employeeId || fullName || 'Unknown',
+        message: 'Missing required parameters: username, password, fullName, email, or employeeId.'
+      });
+      continue;
+    }
+
+    // Role check - Admins can only create standard 'user'
+    if (req.user.role === 'admin' && role !== 'user' && role) {
+      results.failCount++;
+      results.errors.push({
+        identifier: username,
+        message: 'Access denied. Admins can only create standard users.'
+      });
+      continue;
+    }
+
+    try {
+      // Check duplicate
+      const userExists = await User.findOne({ $or: [{ username }, { email }, { employeeId }] });
+      if (userExists) {
+        results.failCount++;
+        results.errors.push({
+          identifier: username,
+          message: `Duplicate conflict: Username, Email, or Employee ID already registered.`
+        });
+        continue;
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password.toString(), salt);
+
+      const newUser = new User({
+        username,
+        password: hashedPassword,
+        role: role || 'user',
+        fullName,
+        dob: dob ? new Date(dob) : undefined,
+        gender: gender || 'male',
+        address,
+        phone,
+        email,
+        jobTitle,
+        joiningDate: joiningDate ? new Date(joiningDate) : undefined,
+        employmentType: employmentType || 'fulltime',
+        employeeId,
+        basicPay: Number(basicPay) || 0,
+        overtimeEligible: overtimeEligible === true || overtimeEligible === 'true',
+        overtimePayPerMinute: Number(overtimePayPerMinute) || 0,
+      });
+
+      await newUser.save();
+      results.successCount++;
+    } catch (err) {
+      results.failCount++;
+      results.errors.push({
+        identifier: username,
+        message: err.message
+      });
+    }
+  }
+
+  res.json({
+    message: `Batch import complete. Successfully engaged ${results.successCount} operators. Failed: ${results.failCount}.`,
+    results
+  });
+});
+
 export default router;
