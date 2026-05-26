@@ -6,18 +6,40 @@ import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 const router = express.Router();
 
 // @route   GET /api/users
-// @desc    Get all employees/users (Sanitized basic details for standard users, full details for Admins)
+// @desc    Get all employees/users matching specific communication barriers
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const isStaff = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isSuperAdmin = req.user.role === 'superadmin';
+    const isAdmin = req.user.role === 'admin';
     let users;
     
-    if (isStaff) {
-      // Admins and Superadmins get full profiles (excluding passwords)
+    if (isSuperAdmin) {
+      // Super Admin sees all profiles (excluding passwords)
       users = await User.find({}).select('-password');
+    } else if (isAdmin) {
+      // Admins see standard users assigned to them plus themselves
+      users = await User.find({
+        $or: [
+          { _id: req.user.userId },
+          { assignedAdmin: req.user.userId }
+        ]
+      }).select('-password');
     } else {
-      // Regular employees only get a sanitized directory for communication/chatting
-      users = await User.find({}).select('fullName role jobTitle _id employeeId email');
+      // Regular employees see peers under the same admin and the admin itself
+      const currentUser = await User.findById(req.user.userId);
+      const assignedAdminId = currentUser?.assignedAdmin;
+      
+      if (assignedAdminId) {
+        users = await User.find({
+          $or: [
+            { _id: assignedAdminId },
+            { assignedAdmin: assignedAdminId }
+          ]
+        }).select('fullName role jobTitle _id employeeId email assignedAdmin');
+      } else {
+        // If a user has no assigned admin, they only see themselves in the workspace directory
+        users = await User.find({ _id: req.user.userId }).select('fullName role jobTitle _id employeeId email');
+      }
     }
     
     res.json(users);
@@ -65,6 +87,9 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     basicPay,
     overtimeEligible,
     overtimePayPerMinute,
+    regularShiftLimit,
+    otShiftLimit,
+    assignedAdmin,
   } = req.body;
 
   // Basic validation
@@ -106,6 +131,9 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       basicPay: Number(basicPay) || 0,
       overtimeEligible: overtimeEligible === true || overtimeEligible === 'true',
       overtimePayPerMinute: Number(overtimePayPerMinute) || 0,
+      regularShiftLimit: regularShiftLimit !== undefined ? Number(regularShiftLimit) : 8,
+      otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
+      assignedAdmin: assignedAdmin || undefined,
     });
 
     await newUser.save();
@@ -146,6 +174,11 @@ router.put('/:id', verifyToken, async (req, res) => {
     // Extract update fields
     const updates = { ...req.body };
 
+    // Only superadmin can set or change the assigned admin of a user
+    if (req.user.role !== 'superadmin') {
+      delete updates.assignedAdmin;
+    }
+
     // Prevent critical edits if updating self without administrative role
     if (!isStaff) {
       delete updates.role;
@@ -153,11 +186,36 @@ router.put('/:id', verifyToken, async (req, res) => {
       delete updates.overtimeEligible;
       delete updates.overtimePayPerMinute;
       delete updates.employeeId;
+      delete updates.regularShiftLimit;
+      delete updates.otShiftLimit;
     }
 
-    // Admin cannot elevate a user to admin or superadmin
-    if (req.user.role === 'admin' && updates.role && updates.role !== 'user') {
-      delete updates.role; // Reset back or deny
+    // Sanitize and safely cast types to prevent Mongoose schema cast faults
+    if (updates.assignedAdmin === '') {
+      updates.assignedAdmin = null;
+    }
+    if (updates.dob === '') {
+      updates.dob = null;
+    }
+    if (updates.joiningDate === '') {
+      updates.joiningDate = null;
+    }
+    if (updates.basicPay !== undefined) {
+      updates.basicPay = Number(updates.basicPay) || 0;
+    }
+    if (updates.overtimePayPerMinute !== undefined) {
+      updates.overtimePayPerMinute = Number(updates.overtimePayPerMinute) || 0;
+    }
+    if (updates.regularShiftLimit !== undefined) {
+      updates.regularShiftLimit = Number(updates.regularShiftLimit) || 8;
+    }
+    if (updates.otShiftLimit !== undefined) {
+      updates.otShiftLimit = Number(updates.otShiftLimit) || 4;
+    }
+
+    // Only superadmin can modify the role parameter of any user
+    if (req.user.role !== 'superadmin' && updates.role) {
+      delete updates.role;
     }
 
     // Hash password if updating
@@ -239,6 +297,9 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       basicPay,
       overtimeEligible,
       overtimePayPerMinute,
+      regularShiftLimit,
+      otShiftLimit,
+      assignedAdmin,
     } = userObj;
 
     // Required fields validation
@@ -294,6 +355,9 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         basicPay: Number(basicPay) || 0,
         overtimeEligible: overtimeEligible === true || overtimeEligible === 'true',
         overtimePayPerMinute: Number(overtimePayPerMinute) || 0,
+        regularShiftLimit: regularShiftLimit !== undefined ? Number(regularShiftLimit) : 8,
+        otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
+        assignedAdmin: assignedAdmin || undefined,
       });
 
       await newUser.save();

@@ -14,6 +14,12 @@ const SessionSchema = new mongoose.Schema(
     overtimeMinutes: { type: Number, default: 0 },
     overtimePay: { type: Number, default: 0 },
     regularPay: { type: Number, default: 0 },
+    shiftType: {
+      type: String,
+      enum: ['regular', 'overtime'],
+      default: 'regular'
+    },
+    sessionLimitMinutes: { type: Number, default: 480 },
     status: {
       type: String,
       enum: ['active', 'on_break', 'completed'],

@@ -461,27 +461,27 @@ export default function MeetingCalendarHub() {
                       <div className="form-group">
                         <label className="form-label">LAUNCH TIMESTAMP *</label>
                         <div className="relative">
+                          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                           <input
                             type="datetime-local"
                             required
                             value={startTime}
                             onChange={(e) => setStartTime(e.target.value)}
-                            className="input pr-9"
+                            className="input pl-9"
                           />
-                          <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         </div>
                       </div>
                       <div className="form-group">
                         <label className="form-label">CONCLUSION TIMESTAMP *</label>
                         <div className="relative">
+                          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                           <input
                             type="datetime-local"
                             required
                             value={endTime}
                             onChange={(e) => setEndTime(e.target.value)}
-                            className="input pr-9"
+                            className="input pl-9"
                           />
-                          <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         </div>
                       </div>
                     </div>

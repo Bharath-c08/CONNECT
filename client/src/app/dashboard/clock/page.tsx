@@ -348,7 +348,7 @@ export default function TimesheetsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-auto select-none">
+        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto select-none">
           <div className="tab-bar">
             {isAdmin && (
               <>
@@ -661,7 +661,14 @@ export default function TimesheetsPage() {
                             </td>
                           )}
                           <td className="py-3 px-5 font-semibold">
-                            {new Date(session.clockIn).toLocaleDateString([], { dateStyle: 'medium' })}
+                            <div>{new Date(session.clockIn).toLocaleDateString([], { dateStyle: 'medium' })}</div>
+                            <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-[3px] text-[8px] font-extrabold uppercase tracking-wide border ${
+                              session.shiftType === 'overtime'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+                            }`}>
+                              {session.shiftType === 'overtime' ? 'OVERTIME (OT)' : 'REGULAR'}
+                            </span>
                           </td>
                           <td className="py-3 px-5">
                             {new Date(session.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

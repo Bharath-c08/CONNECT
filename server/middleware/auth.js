@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 export const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -17,18 +18,28 @@ export const verifyToken = (req, res, next) => {
   }
 };
 
-export const isSuperAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 'superadmin') {
-    next();
-  } else {
-    return res.status(403).json({ message: 'Access denied. Superadmin role required.' });
+export const isSuperAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (user && user.role === 'superadmin') {
+      next();
+    } else {
+      return res.status(403).json({ message: 'Access denied. Superadmin role required.' });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: 'Error verifying superadmin privileges.', error: err.message });
   }
 };
 
-export const isAdminOrSuperAdmin = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
-    next();
-  } else {
-    return res.status(403).json({ message: 'Access denied. Administrator privileges required.' });
+export const isAdminOrSuperAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (user && (user.role === 'admin' || user.role === 'superadmin')) {
+      next();
+    } else {
+      return res.status(403).json({ message: 'Access denied. Administrator privileges required.' });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: 'Error verifying administrator privileges.', error: err.message });
   }
 };

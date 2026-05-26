@@ -456,6 +456,7 @@ body {
    ===================================================== */
 .tab-bar {
   display: flex;
+  flex-wrap: wrap;
   background: rgba(16, 16, 24, 0.8);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

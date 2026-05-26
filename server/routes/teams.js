@@ -2,6 +2,7 @@ import express from 'express';
 import Team from '../models/Team.js';
 import User from '../models/User.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
+import { encrypt, decrypt } from '../utils/crypto.js';
 
 const router = express.Router();
 
@@ -15,14 +16,22 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   }
 
   try {
-    const teamExists = await Team.findOne({ name });
+    // Uniqueness validation by decrypting existing names
+    const allTeams = await Team.find({});
+    const teamExists = allTeams.some(
+      (t) => decrypt(t.name).toLowerCase() === name.trim().toLowerCase()
+    );
+
     if (teamExists) {
       return res.status(400).json({ message: 'A team with this name already exists.' });
     }
 
+    const encryptedName = encrypt(name.trim());
+    const encryptedDescription = encrypt(description ? description.trim() : '');
+
     const newTeam = new Team({
-      name,
-      description,
+      name: encryptedName,
+      description: encryptedDescription,
       members: members || [],
       admins: [req.user.userId], // Creator is the first team admin
     });
@@ -39,7 +48,12 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     // Add creator user to team reference too
     await User.findByIdAndUpdate(req.user.userId, { $addToSet: { teams: newTeam._id } });
 
-    res.status(201).json(newTeam);
+    // Decrypt fields for returning payload
+    const teamResponse = newTeam.toObject();
+    teamResponse.name = name.trim();
+    teamResponse.description = description ? description.trim() : '';
+
+    res.status(201).json(teamResponse);
   } catch (error) {
     res.status(500).json({ message: 'Error creating team', error: error.message });
   }
@@ -52,7 +66,16 @@ router.get('/', verifyToken, async (req, res) => {
     const teams = await Team.find({})
       .populate('members', 'fullName email employeeId jobTitle role')
       .populate('admins', 'fullName email');
-    res.json(teams);
+
+    // Decrypt all teams
+    const decryptedTeams = teams.map((t) => {
+      const teamObj = t.toObject();
+      teamObj.name = decrypt(teamObj.name);
+      teamObj.description = decrypt(teamObj.description);
+      return teamObj;
+    });
+
+    res.json(decryptedTeams);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching teams', error: error.message });
   }
@@ -68,7 +91,16 @@ router.get('/my', verifyToken, async (req, res) => {
         { admins: req.user.userId }
       ]
     }).populate('members', 'fullName email employeeId jobTitle role');
-    res.json(teams);
+
+    // Decrypt all user teams
+    const decryptedTeams = teams.map((t) => {
+      const teamObj = t.toObject();
+      teamObj.name = decrypt(teamObj.name);
+      teamObj.description = decrypt(teamObj.description);
+      return teamObj;
+    });
+
+    res.json(decryptedTeams);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user teams', error: error.message });
   }
@@ -88,9 +120,25 @@ router.put('/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     // Capture old members to sync user schemas
     const oldMembers = team.members.map(m => m.toString());
 
-    if (name) team.name = name;
-    if (description !== undefined) team.description = description;
-    if (members) team.members = members;
+    if (name) {
+      // Uniqueness check for name update
+      const allTeams = await Team.find({ _id: { $ne: req.params.id } });
+      const duplicateExists = allTeams.some(
+        (t) => decrypt(t.name).toLowerCase() === name.trim().toLowerCase()
+      );
+      if (duplicateExists) {
+        return res.status(400).json({ message: 'A team with this name already exists.' });
+      }
+      team.name = encrypt(name.trim());
+    }
+
+    if (description !== undefined) {
+      team.description = encrypt(description.trim());
+    }
+
+    if (members) {
+      team.members = members;
+    }
 
     await team.save();
 
@@ -112,7 +160,12 @@ router.put('/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       );
     }
 
-    res.json({ message: 'Team updated successfully', team });
+    // Decrypt the returned object
+    const teamObj = team.toObject();
+    teamObj.name = name ? name.trim() : decrypt(team.name);
+    teamObj.description = description !== undefined ? description.trim() : decrypt(team.description);
+
+    res.json({ message: 'Team updated successfully', team: teamObj });
   } catch (error) {
     res.status(500).json({ message: 'Error updating team', error: error.message });
   }

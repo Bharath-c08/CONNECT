@@ -26,6 +26,9 @@ const UserSchema = new mongoose.Schema(
     basicPay: { type: Number, default: 0 }, // Hourly rate or base wage
     overtimeEligible: { type: Boolean, default: false },
     overtimePayPerMinute: { type: Number, default: 0 },
+    regularShiftLimit: { type: Number, default: 8 },
+    otShiftLimit: { type: Number, default: 4 },
+    assignedAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     panDetails: { type: String },
     aadhaarDetails: { type: String },
     bankAccountNumber: { type: String },

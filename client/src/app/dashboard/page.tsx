@@ -52,10 +52,17 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Break Options States
   const [breakTypes, setBreakTypes] = useState<any[]>([]);
   const [selectedBreakType, setSelectedBreakType] = useState<any>(null);
   const [breakElapsedTime, setBreakElapsedTime] = useState('00m 00s');
+  const [clockStatus, setClockStatus] = useState<any>({
+    regularShiftLimit: 8,
+    otShiftLimit: 4,
+    overtimeEligible: false,
+    regularMinutesToday: 0,
+    otMinutesToday: 0
+  });
+  const [selectedShiftType, setSelectedShiftType] = useState<'regular' | 'overtime'>('regular');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -138,6 +145,18 @@ export default function DashboardPage() {
       const clockData = await apiRequest('/clock/status');
       setClockedIn(clockData.clockedIn);
       setActiveSession(clockData.session);
+      setClockStatus({
+        regularShiftLimit: clockData.regularShiftLimit ?? 8,
+        otShiftLimit: clockData.otShiftLimit ?? 4,
+        overtimeEligible: clockData.overtimeEligible ?? false,
+        regularMinutesToday: clockData.regularMinutesToday ?? 0,
+        otMinutesToday: clockData.otMinutesToday ?? 0
+      });
+      if ((clockData.regularMinutesToday ?? 0) >= (clockData.regularShiftLimit ?? 8) * 60 && clockData.overtimeEligible) {
+        setSelectedShiftType('overtime');
+      } else {
+        setSelectedShiftType('regular');
+      }
 
       const taskData = await apiRequest('/tasks/my');
       setTasks(taskData.slice(0, 4));
@@ -207,7 +226,7 @@ export default function DashboardPage() {
   const triggerClockIn = async (location: any) => {
     const data = await apiRequest('/clock/in', {
       method: 'POST',
-      body: JSON.stringify({ location }),
+      body: JSON.stringify({ location, shiftType: selectedShiftType }),
     });
     setClockedIn(true);
     setActiveSession(data.session);
@@ -399,14 +418,104 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="text-center py-2 select-none">
-            <p className="text-3xl font-extrabold font-mono tracking-widest text-white" style={{ letterSpacing: '2px' }}>
+          <div className="text-center py-1 select-none flex flex-col gap-1.5">
+            <p className="text-3xl font-extrabold font-mono tracking-widest text-white animate-pulse" style={{ letterSpacing: '2px' }}>
               {elapsedTime}
             </p>
-            <p className="text-[9px] font-mono mt-1 text-slate-500 tracking-wider">
-              {clockedIn ? 'LIVE_STREAM_ELAPSED' : 'SYSTEM_READY'}
+            <p className="text-[9px] font-mono text-slate-500 tracking-wider">
+              {clockedIn 
+                ? `ACTIVE ${activeSession?.shiftType === 'overtime' ? 'OVERTIME (OT)' : 'REGULAR'} SHIFT RUNNING` 
+                : 'SYSTEM_READY'}
             </p>
           </div>
+
+          {/* Shift Telemetry Limits Tracker */}
+          <div className="flex flex-col gap-2 p-3 rounded bg-zinc-950/40 border text-[10px] font-mono select-none" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between text-slate-400">
+                <span>REGULAR SHIFT CAP:</span>
+                <span className="text-white font-bold">
+                  {((clockStatus.regularMinutesToday || 0) / 60).toFixed(1)} / {clockStatus.regularShiftLimit} hrs
+                </span>
+              </div>
+              <div className="w-full bg-zinc-900 rounded-full h-1 overflow-hidden">
+                <div 
+                  className="bg-[#ef4444] h-1 rounded-full transition-all duration-500" 
+                  style={{ width: `${Math.min(100, ((clockStatus.regularMinutesToday || 0) / (clockStatus.regularShiftLimit * 60)) * 100)}%` }} 
+                />
+              </div>
+            </div>
+
+            {clockStatus.overtimeEligible && (
+              <div className="flex flex-col gap-1 mt-1 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>OVERTIME (OT) SHIFT CAP:</span>
+                  <span className="text-white font-bold">
+                    {((clockStatus.otMinutesToday || 0) / 60).toFixed(1)} / {clockStatus.otShiftLimit} hrs
+                  </span>
+                </div>
+                <div className="w-full bg-zinc-900 rounded-full h-1 overflow-hidden">
+                  <div 
+                    className="bg-amber-500 h-1 rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, ((clockStatus.otMinutesToday || 0) / (clockStatus.otShiftLimit * 60)) * 100)}%` }} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Shift Type Selection (when clocked out) */}
+          {!clockedIn && (
+            <div className="flex flex-col gap-2 p-3 rounded bg-zinc-950/40 border" style={{ borderColor: 'var(--border)' }}>
+              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">SELECT TARGET SHIFT MODE:</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedShiftType('regular')}
+                  disabled={(clockStatus.regularMinutesToday || 0) >= clockStatus.regularShiftLimit * 60}
+                  className={`py-2 rounded text-[10px] font-extrabold uppercase border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    selectedShiftType === 'regular'
+                      ? 'bg-[#ef4444]/15 border-[#ef4444]/40 text-[#ef4444]'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  title={
+                    (clockStatus.regularMinutesToday || 0) >= clockStatus.regularShiftLimit * 60 
+                      ? 'Regular limit met today.' 
+                      : 'Clock in to regular shift'
+                  }
+                >
+                  <span>Regular</span>
+                  <span className="text-[8px] font-normal opacity-85">
+                    {((clockStatus.regularMinutesToday || 0) / 60).toFixed(1)}h done
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedShiftType('overtime')}
+                  disabled={!clockStatus.overtimeEligible || (clockStatus.regularMinutesToday || 0) < clockStatus.regularShiftLimit * 60 || (clockStatus.otMinutesToday || 0) >= clockStatus.otShiftLimit * 60}
+                  className={`py-2 rounded text-[10px] font-extrabold uppercase border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    selectedShiftType === 'overtime'
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  title={
+                    !clockStatus.overtimeEligible 
+                      ? 'Not OT Eligible' 
+                      : (clockStatus.regularMinutesToday || 0) < clockStatus.regularShiftLimit * 60 
+                        ? 'Exhaust regular shift first.' 
+                        : (clockStatus.otMinutesToday || 0) >= clockStatus.otShiftLimit * 60 
+                          ? 'OT limit met today.' 
+                          : 'Clock in to Overtime shift'
+                  }
+                >
+                  <span>Overtime (OT)</span>
+                  <span className="text-[8px] font-normal opacity-85">
+                    {((clockStatus.otMinutesToday || 0) / 60).toFixed(1)}h done
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 mt-auto font-mono">
             {clockedIn && activeSession && (

@@ -260,6 +260,9 @@ export default function UserDirectoryPage() {
     basicPay: 0,
     overtimeEligible: false,
     overtimePayPerMinute: 0,
+    regularShiftLimit: 8,
+    otShiftLimit: 4,
+    assignedAdmin: '',
     panDetails: '',
     aadhaarDetails: '',
     bankAccountNumber: '',
@@ -318,6 +321,9 @@ export default function UserDirectoryPage() {
       basicPay: 0,
       overtimeEligible: false,
       overtimePayPerMinute: 0,
+      regularShiftLimit: 8,
+      otShiftLimit: 4,
+      assignedAdmin: '',
       panDetails: '',
       aadhaarDetails: '',
       bankAccountNumber: '',
@@ -352,6 +358,9 @@ export default function UserDirectoryPage() {
       basicPay: user.basicPay || 0,
       overtimeEligible: user.overtimeEligible || false,
       overtimePayPerMinute: user.overtimePayPerMinute || 0,
+      regularShiftLimit: user.regularShiftLimit !== undefined ? user.regularShiftLimit : 8,
+      otShiftLimit: user.otShiftLimit !== undefined ? user.otShiftLimit : 4,
+      assignedAdmin: user.assignedAdmin || '',
       panDetails: user.panDetails || '',
       aadhaarDetails: user.aadhaarDetails || '',
       bankAccountNumber: user.bankAccountNumber || '',
@@ -553,7 +562,7 @@ export default function UserDirectoryPage() {
             SECURE ACCESS CORE: MANAGE CREDENTIALS, WAGES CONFIGURATION AND NODE ROLES.
           </p>
         </div>
-        <div className="flex items-center gap-3 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={() => setExportModalOpen(true)}
@@ -687,6 +696,15 @@ export default function UserDirectoryPage() {
                     <span className="text-emerald-500 font-bold">₹</span>
                     <span>WAGE_BAND: <strong className="font-bold text-emerald-400">₹{user.basicPay}/mo</strong></span>
                   </div>
+
+                  {user.role === 'user' && (
+                    <div className="flex items-center gap-2 select-none border-t pt-2 mt-2" style={{ borderColor: 'var(--border)' }}>
+                      <span className="text-[9px] uppercase font-bold text-slate-500">ASSIGNED ADMIN:</span>
+                      <span className="text-[10px] text-[#ef4444] font-bold pl-1.5">
+                        {users.find((u: any) => u._id === user.assignedAdmin)?.fullName?.toUpperCase() || 'UNASSIGNED'}
+                      </span>
+                    </div>
+                  )}
 
                   {(user.bankAccountNumber || user.panDetails) && (
                     <div className="flex flex-col gap-1 border-t pt-2 mt-2" style={{ borderColor: 'var(--border)' }}>
@@ -828,7 +846,8 @@ export default function UserDirectoryPage() {
                       name="role"
                       value={formData.role}
                       onChange={handleInputChange}
-                      className="select"
+                      disabled={currentUser?.role !== 'superadmin'}
+                      className="select disabled:opacity-50"
                     >
                       <option value="user">Employee (Regular user)</option>
                       {currentUser && currentUser.role === 'superadmin' && (
@@ -850,6 +869,28 @@ export default function UserDirectoryPage() {
                     </select>
                   </div>
                 </div>
+
+                {currentUser && currentUser.role === 'superadmin' && formData.role === 'user' && (
+                  <div className="form-group mt-4">
+                    <label className="form-label mb-1">Assigned Admin (Manager) *</label>
+                    <select
+                      name="assignedAdmin"
+                      value={formData.assignedAdmin}
+                      onChange={handleInputChange}
+                      required
+                      className="select w-full"
+                    >
+                      <option value="">SELECT ADMIN MANAGER...</option>
+                      {users
+                        .filter((u: any) => u.role === 'admin')
+                        .map((adm: any) => (
+                          <option key={adm._id} value={adm._id}>
+                            {adm.fullName.toUpperCase()} ({adm.employeeId})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Personal Details */}
                 <div className="border-t pt-4" style={{ borderColor: 'var(--border)' }}>
@@ -1040,9 +1081,39 @@ export default function UserDirectoryPage() {
                         className="w-4 h-4 rounded border-zinc-800 bg-zinc-950 text-[#ef4444] focus:ring-[#ef4444]"
                       />
                       <span className="text-[10px] text-slate-400 uppercase tracking-wide">
-                        ALLOW OVERTIME CALCULATOR (ACTIVE AFTER 8 SHIFT HOURS)
+                        ALLOW OVERTIME CALCULATOR (ACTIVE AFTER EXHAUSTING REGULAR SHIFT LIMIT)
                       </span>
                     </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <div className="form-group">
+                      <label className="form-label mb-1">Regular Shift Limit (Hours) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        max="24"
+                        name="regularShiftLimit"
+                        value={formData.regularShiftLimit}
+                        onChange={handleInputChange}
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">Overtime Shift Limit (Hours) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        max="24"
+                        name="otShiftLimit"
+                        value={formData.otShiftLimit}
+                        onChange={handleInputChange}
+                        disabled={!formData.overtimeEligible}
+                        className="input font-mono"
+                      />
+                    </div>
                   </div>
                 </div>
 

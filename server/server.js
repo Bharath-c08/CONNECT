@@ -109,64 +109,68 @@ mongoose
             await task.save();
           }
           
-          // 9-Hour Automatic Shift Termination Cron Job
+          // Dynamic Automatic Shift Termination Cron Job
           try {
-            const nineHoursAgo = new Date(Date.now() - 9 * 60 * 60 * 1000);
-            const overdueSessions = await Session.find({
-              status: { $in: ['active', 'on_break'] },
-              clockIn: { $lt: nineHoursAgo }
+            const activeSessions = await Session.find({
+              status: { $in: ['active', 'on_break'] }
             });
 
-            for (const session of overdueSessions) {
-              const clockOutTime = new Date(session.clockIn.getTime() + 9 * 60 * 60 * 1000); // end shift exactly at 9 hours
-              
-              // Auto-conclude breaks if still open
-              session.breaks.forEach((b) => {
-                if (!b.endedAt) {
-                  b.endedAt = clockOutTime;
+            for (const session of activeSessions) {
+              const limitMins = session.sessionLimitMinutes !== undefined ? session.sessionLimitMinutes : (9 * 60);
+              const limitMs = limitMins * 60 * 1000;
+              const elapsedMs = Date.now() - session.clockIn.getTime();
+
+              if (elapsedMs >= limitMs) {
+                const clockOutTime = new Date(session.clockIn.getTime() + limitMs);
+                
+                // Auto-conclude breaks if still open
+                session.breaks.forEach((b) => {
+                  if (!b.endedAt) {
+                    b.endedAt = clockOutTime;
+                  }
+                });
+
+                // Calculate break times and excess limit deductions
+                let totalBreaksMinutes = 0;
+                session.breaks.forEach((b) => {
+                  const ended = b.endedAt;
+                  const actualDurationMs = ended - b.startedAt;
+                  const actualDurationMins = Math.round(actualDurationMs / 60000);
+                  const excessMins = Math.max(0, actualDurationMins - b.duration);
+                  totalBreaksMinutes += (actualDurationMins + excessMins);
+                });
+
+                const netWorkingMins = Math.max(0, limitMins - totalBreaksMinutes);
+
+                session.clockOut = clockOutTime;
+                session.duration = netWorkingMins;
+                session.overtimeMinutes = 0;
+                session.regularPay = 0;
+                session.overtimePay = 0;
+                session.status = 'completed';
+                session.needsApproval = true;
+                session.approvalStatus = 'pending';
+                session.autoClockedOut = true;
+
+                await session.save();
+
+                // Create notification for operator
+                const limitHours = (limitMins / 60).toFixed(1);
+                const notif = new Notification({
+                  recipientId: session.userId,
+                  type: 'system',
+                  title: 'Auto Shift Termination Alert',
+                  message: `Your shift has been automatically terminated as it exceeded the ${limitHours}-hour limit. Admin approval is pending.`,
+                  link: '/dashboard/clock'
+                });
+                await notif.save();
+
+                // Emit real-time WebSockets
+                const ioInstance = app.get('io');
+                if (ioInstance) {
+                  ioInstance.to(session.userId.toString()).emit('new-notification', notif);
+                  ioInstance.emit('clock-status-changed', { userId: session.userId, session });
                 }
-              });
-
-              // Calculate break times and excess limit deductions
-              let totalBreaksMinutes = 0;
-              session.breaks.forEach((b) => {
-                const ended = b.endedAt;
-                const actualDurationMs = ended - b.startedAt;
-                const actualDurationMins = Math.round(actualDurationMs / 60000);
-                const excessMins = Math.max(0, actualDurationMins - b.duration);
-                totalBreaksMinutes += (actualDurationMins + excessMins);
-              });
-
-              const totalShiftMins = 9 * 60; // 9 hours exactly
-              const netWorkingMins = Math.max(0, totalShiftMins - totalBreaksMinutes);
-
-              session.clockOut = clockOutTime;
-              session.duration = netWorkingMins;
-              session.overtimeMinutes = 0;
-              session.regularPay = 0;
-              session.overtimePay = 0;
-              session.status = 'completed';
-              session.needsApproval = true;
-              session.approvalStatus = 'pending';
-              session.autoClockedOut = true;
-
-              await session.save();
-
-              // Create notification for operator
-              const notif = new Notification({
-                recipientId: session.userId,
-                type: 'system',
-                title: 'Auto Shift Termination Alert',
-                message: `Your shift has been automatically terminated as it exceeded the 9-hour limit. Admin approval is pending.`,
-                link: '/dashboard/clock'
-              });
-              await notif.save();
-
-              // Emit real-time WebSockets
-              const ioInstance = app.get('io');
-              if (ioInstance) {
-                ioInstance.to(session.userId.toString()).emit('new-notification', notif);
-                ioInstance.emit('clock-status-changed', { userId: session.userId, session });
               }
             }
           } catch (shiftErr) {

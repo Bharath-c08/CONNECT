@@ -7,18 +7,52 @@ import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 const router = express.Router();
 
 // @route   GET /api/clock/status
-// @desc    Get the current user's clocking status
+// @desc    Get the current user's clocking status and shift limit telemetry rules
 router.get('/status', verifyToken, async (req, res) => {
   try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User profile not found.' });
+    }
+
     const activeSession = await Session.findOne({
       userId: req.user.userId,
       status: { $in: ['active', 'on_break'] },
     });
 
-    if (activeSession) {
-      return res.json({ clockedIn: true, session: activeSession });
-    }
-    res.json({ clockedIn: false, session: null });
+    // Compute completed shift metrics for today in server local time
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const sessionsToday = await Session.find({
+      userId: req.user.userId,
+      clockIn: { $gte: todayStart, $lte: todayEnd }
+    });
+
+    let regularMinutesToday = 0;
+    let otMinutesToday = 0;
+
+    sessionsToday.forEach((s) => {
+      if (s.status === 'completed') {
+        if (s.shiftType === 'overtime') {
+          otMinutesToday += s.duration || 0;
+        } else {
+          regularMinutesToday += s.duration || 0;
+        }
+      }
+    });
+
+    res.json({
+      clockedIn: !!activeSession,
+      session: activeSession,
+      regularShiftLimit: user.regularShiftLimit ?? 8,
+      otShiftLimit: user.otShiftLimit ?? 4,
+      overtimeEligible: user.overtimeEligible ?? false,
+      regularMinutesToday,
+      otMinutesToday
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error checking clock status', error: error.message });
   }
@@ -27,7 +61,8 @@ router.get('/status', verifyToken, async (req, res) => {
 // @route   POST /api/clock/in
 // @desc    Start a clock-in session (Restricted to one active session at a time)
 router.post('/in', verifyToken, async (req, res) => {
-  const { location } = req.body;
+  const { location, shiftType } = req.body;
+  const selectedType = shiftType || 'regular';
 
   try {
     // Check for an existing active session in case clocks mismatch
@@ -40,10 +75,65 @@ router.post('/in', verifyToken, async (req, res) => {
       return res.status(400).json({ message: 'You already have an active shift session running.' });
     }
 
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User profile not found.' });
+    }
+
+    // Compute completed shift metrics for today in server local time
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const sessionsToday = await Session.find({
+      userId: req.user.userId,
+      clockIn: { $gte: todayStart, $lte: todayEnd }
+    });
+
+    let regularMinutesToday = 0;
+    let otMinutesToday = 0;
+
+    sessionsToday.forEach((s) => {
+      if (s.status === 'completed') {
+        if (s.shiftType === 'overtime') {
+          otMinutesToday += s.duration || 0;
+        } else {
+          regularMinutesToday += s.duration || 0;
+        }
+      }
+    });
+
+    const regLimitMins = (user.regularShiftLimit ?? 8) * 60;
+    const otLimitMins = (user.otShiftLimit ?? 4) * 60;
+    let sessionLimitMinutes = 480; // default fallback
+
+    if (selectedType === 'overtime') {
+      if (!user.overtimeEligible) {
+        return res.status(400).json({ message: 'You are not configured as eligible for Overtime (OT) shifts by the administrator.' });
+      }
+      if (regularMinutesToday < regLimitMins) {
+        return res.status(400).json({
+          message: `REGULAR_LIMIT_NOT_MET: You must complete your regular shift limit of ${user.regularShiftLimit} hours (currently at ${(regularMinutesToday / 60).toFixed(1)} hours) before you can clock in for Overtime (OT).`
+        });
+      }
+      if (otMinutesToday >= otLimitMins) {
+        return res.status(400).json({ message: `OT_LIMIT_EXHAUSTED: You have already completed your overtime shift limit of ${user.otShiftLimit} hours for today.` });
+      }
+      sessionLimitMinutes = otLimitMins - otMinutesToday;
+    } else {
+      if (regularMinutesToday >= regLimitMins) {
+        return res.status(400).json({ message: `REGULAR_LIMIT_EXHAUSTED: You have already completed your regular shift limit of ${user.regularShiftLimit} hours for today. Please clock in using Overtime (OT) shift.` });
+      }
+      sessionLimitMinutes = regLimitMins - regularMinutesToday;
+    }
+
     const newSession = new Session({
       userId: req.user.userId,
       clockIn: new Date(),
       location: location || null,
+      shiftType: selectedType,
+      sessionLimitMinutes,
       status: 'active',
     });
 
