@@ -605,7 +605,7 @@ export default function ChatHubPage() {
                               style={{
                                 backgroundColor: isMe ? 'rgba(6, 182, 212, 0.14)' : 'rgba(28, 28, 40, 0.95)',
                                 borderColor: isMe ? 'rgba(6, 182, 212, 0.45)' : 'rgba(255, 255, 255, 0.05)',
-                                color: 'var(--text-primary)'
+                                color: isMe ? 'var(--text-primary)' : '#f8fafc'
                               }}
                             >
                               {msg.content}

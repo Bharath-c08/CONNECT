@@ -461,27 +461,27 @@ export default function MeetingCalendarHub() {
                       <div className="form-group">
                         <label className="form-label">LAUNCH TIMESTAMP *</label>
                         <div className="relative">
-                          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                           <input
                             type="datetime-local"
                             required
                             value={startTime}
                             onChange={(e) => setStartTime(e.target.value)}
-                            className="input pl-9"
+                            className="input pr-9"
                           />
+                          <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         </div>
                       </div>
                       <div className="form-group">
                         <label className="form-label">CONCLUSION TIMESTAMP *</label>
                         <div className="relative">
-                          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                           <input
                             type="datetime-local"
                             required
                             value={endTime}
                             onChange={(e) => setEndTime(e.target.value)}
-                            className="input pl-9"
+                            className="input pr-9"
                           />
+                          <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         </div>
                       </div>
                     </div>
@@ -494,10 +494,11 @@ export default function MeetingCalendarHub() {
                         {employees.map((emp) => (
                           <label
                             key={emp._id}
-                            className="flex items-center gap-2.5 p-2 bg-zinc-950/20 border border-white/5 hover:bg-white/5 rounded cursor-pointer text-[10px]"
+                            className="flex items-center gap-2.5 p-2 border rounded cursor-pointer text-[10px]"
                             style={{
                               backgroundColor: 'var(--bg-elevated)',
-                              borderColor: 'var(--border)'
+                              borderColor: 'var(--border)',
+                              color: 'var(--text-primary)'
                             }}
                           >
                             <input
@@ -506,8 +507,8 @@ export default function MeetingCalendarHub() {
                               onChange={() => handleToggleInvite(emp._id)}
                               className="w-3.5 h-3.5 rounded border-zinc-800 text-rose-600 focus:ring-rose-500"
                             />
-                            <span className="text-white font-bold">{emp.fullName.toUpperCase()}</span>
-                            <span className="text-slate-500 font-normal">({emp.jobTitle || 'Operator'})</span>
+                            <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{emp.fullName.toUpperCase()}</span>
+                            <span className="font-normal" style={{ color: 'var(--text-secondary)' }}>({emp.jobTitle || 'Operator'})</span>
                           </label>
                         ))}
                       </div>

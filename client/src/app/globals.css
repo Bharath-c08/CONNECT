@@ -69,8 +69,8 @@ body.light {
   --border-focus: #dc2626;
 
   --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-secondary: #1e293b;
+  --text-muted: #475569;
   --text-link: #dc2626;
 
   --brand: #dc2626;
@@ -488,8 +488,8 @@ body.light .text-white { color: var(--text-primary) !important; }
 body.light .text-slate-100 { color: #0f172a !important; }
 body.light .text-slate-200 { color: #1e293b !important; }
 body.light .text-slate-300 { color: #334155 !important; }
-body.light .text-slate-400 { color: #475569 !important; }
-body.light .text-slate-500 { color: #64748b !important; }
+body.light .text-slate-400 { color: #334155 !important; }
+body.light .text-slate-500 { color: #1e293b !important; }
 
 body.light .bg-white\/5  { background-color: rgba(220, 38, 38, 0.04) !important; }
 body.light .bg-white\/3  { background-color: rgba(220, 38, 38, 0.02) !important; }
