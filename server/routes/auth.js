@@ -94,32 +94,42 @@ router.post('/change-password', verifyToken, async (req, res) => {
   }
 });
 
-// @route   POST /api/auth/reset-superadmin-recovery
-// @desc    Open recovery route to reset superadmin back to default credentials
-router.post('/reset-superadmin-recovery', async (req, res) => {
-  try {
-    let superadmin = await User.findOne({ username: 'superadmin' });
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash('Mrkd0t@Sup3r!', salt);
+// @route   POST /api/auth/forgot-password-request
+// @desc    User submits a forgotten-password request — creates a notification for the superadmin
+router.post('/forgot-password-request', async (req, res) => {
+  const { username } = req.body;
 
-    if (superadmin) {
-      superadmin.password = hashedPassword;
-      await superadmin.save();
-    } else {
-      superadmin = new User({
-        username: 'superadmin',
-        password: hashedPassword,
-        role: 'superadmin',
-        fullName: 'Super Admin',
-        email: 'superadmin@markdotintellect.com',
-        employeeId: 'EMP001',
-        employmentType: 'fulltime',
-      });
-      await superadmin.save();
+  if (!username) {
+    return res.status(400).json({ message: 'Please provide your username.' });
+  }
+
+  try {
+    // Verify the requesting user actually exists
+    const requestingUser = await User.findOne({ username });
+    if (!requestingUser) {
+      // Return a generic message to avoid username enumeration
+      return res.json({ message: 'If that username exists, a request has been sent to the administrator.' });
     }
-    res.json({ message: 'Superadmin password reset to default.' });
+
+    // Find the superadmin to notify
+    const superadmin = await User.findOne({ role: 'superadmin' });
+    if (!superadmin) {
+      return res.status(500).json({ message: 'Unable to reach administrator. Please contact support.' });
+    }
+
+    // Create the notification
+    const Notification = (await import('../models/Notification.js')).default;
+    await Notification.create({
+      recipientId: superadmin._id,
+      type: 'password_reset',
+      title: 'Password Reset Request',
+      message: `User "${requestingUser.fullName || username}" (${username}) has requested a password reset. Please update their password manually.`,
+      link: '/dashboard',
+    });
+
+    res.json({ message: 'Your request has been sent to the administrator. Please wait for assistance.' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error resetting superadmin', error: error.message });
+    res.status(500).json({ message: 'Server error processing request', error: error.message });
   }
 });
 

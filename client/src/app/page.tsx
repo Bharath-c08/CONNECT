@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, User as UserIcon, RefreshCw, AlertCircle, CheckCircle, Sun, Moon, Cpu, Binary } from 'lucide-react';
+import { Lock, User as UserIcon, RefreshCw, AlertCircle, CheckCircle, Sun, Moon, Cpu, Binary, KeyRound, Send } from 'lucide-react';
 import { apiRequest, setAuthToken, setCurrentUser, getAuthToken } from '../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,8 +15,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [isResetting, setIsResetting] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotUsername, setForgotUsername] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
@@ -76,34 +79,22 @@ export default function LoginPage() {
     await loginWithCredentials(username, password);
   };
 
-  const handleResetSuperadmin = async () => {
-    setIsResetting(true);
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotUsername.trim()) return;
+    setForgotLoading(true);
     setError('');
-    setSuccess('');
     try {
-      const data = await apiRequest('/auth/reset-superadmin-recovery', {
+      await apiRequest('/auth/forgot-password-request', {
         method: 'POST',
+        body: JSON.stringify({ username: forgotUsername.trim() }),
       });
-      // Show credentials as text — do NOT put password into the <input type="password">
-      setSuccess((data.message || 'SUPERADMIN NODE RESTORED.') + ' Login: superadmin / superadmin@123');
-      setUsername('superadmin');
-      // password state left empty intentionally to avoid Chrome breach warning
+      setForgotSent(true);
     } catch (err: any) {
-      setError(err.message || 'RESET NODE RETRIEVAL ERROR.');
+      setError(err.message || 'REQUEST FAILED. TRY AGAIN.');
     } finally {
-      setIsResetting(false);
+      setForgotLoading(false);
     }
-  };
-
-  // Quick-login: calls API directly, never puts password into the DOM password field
-  const handleQuickLogin = async (role: 'superadmin' | 'admin' | 'user') => {
-    const creds: Record<string, { u: string; p: string }> = {
-      superadmin: { u: 'superadmin',    p: 'Mrkd0t@Sup3r!' },
-      admin:      { u: 'admin_demo',    p: 'Mrkd0t@Adm1n!' },
-      user:       { u: 'employee_demo', p: 'Mrkd0t@Us3r!'  },
-    };
-    const { u, p } = creds[role];
-    await loginWithCredentials(u, p);
   };
 
   return (
@@ -266,61 +257,93 @@ export default function LoginPage() {
             </motion.button>
           </form>
 
-          {/* Quick-Login Demo Buttons — login API called directly, password never enters the DOM field */}
+          {/* Forgot Password */}
           <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--border)' }}>
-            <h3 className="text-[8px] font-bold font-mono text-slate-500 mb-3 uppercase tracking-widest text-center" style={{ color: 'var(--text-muted)' }}>quick access — one-click login</h3>
-            <div className="grid grid-cols-3 gap-2">
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                disabled={loading}
-                onClick={() => handleQuickLogin('superadmin')}
-                className="sandbox-pill bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.96] text-rose-400 border border-rose-500/15 hover:border-rose-500/30 transition-all cursor-pointer tracking-wider font-mono text-[9px] h-9 disabled:opacity-40"
-              >
-                SUPERADMIN
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                disabled={loading}
-                onClick={() => handleQuickLogin('admin')}
-                className="sandbox-pill bg-amber-500/10 hover:bg-amber-500/20 active:scale-[0.96] text-amber-400 border border-amber-500/15 hover:border-amber-500/30 transition-all cursor-pointer tracking-wider font-mono text-[9px] h-9 disabled:opacity-40"
-              >
-                ADMIN
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                disabled={loading}
-                onClick={() => handleQuickLogin('user')}
-                className="sandbox-pill bg-[#ef4444]/10 hover:bg-[#ef4444]/20 active:scale-[0.96] text-[#ef4444] border border-[#ef4444]/15 hover:border-[#ef4444]/30 transition-all cursor-pointer tracking-wider font-mono text-[9px] h-9 disabled:opacity-40"
-              >
-                EMPLOYEE
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Reset superadmin option */}
-          <div className="mt-5 text-center">
-            <button
-              type="button"
-              onClick={handleResetSuperadmin}
-              disabled={isResetting}
-              className="text-[9px] hover:text-cyan-400 underline underline-offset-4 transition-all cursor-pointer inline-flex items-center gap-1 uppercase tracking-widest font-bold font-mono"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {isResetting ? (
-                <>
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  <span>RESETTING DECK...</span>
-                </>
-              ) : (
-                <span>forgot code? override link</span>
+            <AnimatePresence mode="wait">
+              {!forgotOpen && !forgotSent && (
+                <motion.div
+                  key="forgot-link"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setForgotOpen(true)}
+                    className="text-[9px] hover:text-cyan-400 underline underline-offset-4 transition-all cursor-pointer inline-flex items-center gap-1.5 uppercase tracking-widest font-bold font-mono"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <KeyRound className="w-3 h-3" />
+                    <span>Forgot Password? Request Reset</span>
+                  </button>
+                </motion.div>
               )}
-            </button>
+
+              {forgotOpen && !forgotSent && (
+                <motion.form
+                  key="forgot-form"
+                  onSubmit={handleForgotPassword}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <p className="text-[9px] font-mono uppercase tracking-widest text-center font-bold" style={{ color: 'var(--text-secondary)' }}>
+                    Enter your username — a reset request will be sent to the administrator
+                  </p>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                      <UserIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="YOUR USERNAME"
+                      value={forgotUsername}
+                      onChange={(e) => setForgotUsername(e.target.value)}
+                      autoComplete="off"
+                      className="framer-input"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="framer-btn flex-1 h-9 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 font-mono text-[9px] font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-40"
+                      style={{ borderRadius: 'var(--radius)' }}
+                    >
+                      {forgotLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      {forgotLoading ? 'SENDING...' : 'SEND REQUEST'}
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={() => { setForgotOpen(false); setForgotUsername(''); }}
+                      className="framer-btn h-9 px-4 bg-white/5 hover:bg-white/10 border font-mono text-[9px] font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center"
+                      style={{ borderRadius: 'var(--radius)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      CANCEL
+                    </motion.button>
+                  </div>
+                </motion.form>
+              )}
+
+              {forgotSent && (
+                <motion.div
+                  key="forgot-sent"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-start gap-2.5 font-mono text-[10px] text-cyan-400"
+                >
+                  <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>REQUEST TRANSMITTED — The administrator has been notified. Please wait for assistance.</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
 

@@ -21,9 +21,11 @@ import {
   Moon,
   Binary,
   Radio,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
+import { playNotificationSound } from '../../utils/audio';
 import { io, Socket } from 'socket.io-client';
 import CallOverlay from '../../components/CallOverlay';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,6 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Notifications and Call Socket
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [popupNotification, setPopupNotification] = useState<any>(null);
   const [globalSocket, setGlobalSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
@@ -133,7 +136,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
 
     socket.on('new-notification', (notif) => {
-      setNotifications(prev => [notif, ...prev]);
+      setNotifications(prev => {
+        if (prev.some(n => n._id === notif._id)) return prev;
+        
+        // Execute side effects only if it's a new notification
+        playNotificationSound();
+        setPopupNotification(notif);
+        setTimeout(() => {
+          setPopupNotification((current: any) => current?._id === notif._id ? null : current);
+        }, 5000);
+
+        // Native Browser Notification
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          const fireNativeNotif = () => {
+            try {
+              new Notification(notif.title, { body: notif.message, icon: '/favicon.ico' });
+            } catch (err) {
+              if (navigator.serviceWorker) {
+                navigator.serviceWorker.ready.then(reg => {
+                  reg.showNotification(notif.title, { body: notif.message, icon: '/favicon.ico' });
+                }).catch(() => {});
+              }
+            }
+          };
+
+          if (Notification.permission === 'granted') {
+            fireNativeNotif();
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+              if (permission === 'granted') {
+                fireNativeNotif();
+              }
+            });
+          }
+        }
+        
+        return [notif, ...prev];
+      });
     });
 
     return () => {
@@ -185,6 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Operational Board', index: '05', href: '/dashboard/tasks', icon: ClipboardList, role: 'all' },
     { name: 'Payslip Generator', index: '06', href: '/dashboard/payslip', icon: FileText, role: 'staff' },
     { name: 'Encrypted Feeds', index: '07', href: '/dashboard/chat', icon: MessageSquare, role: 'all' },
+    { name: 'Operational Calendar', index: '08', href: '/dashboard/calendar', icon: Calendar, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link
@@ -390,16 +430,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <AnimatePresence>
                 {showNotifications && (
                   <motion.div 
-                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
                     transition={springTransition}
-                    className="absolute top-full right-0 mt-3 rounded-xl shadow-2xl z-50 overflow-hidden border"
+                    className="fixed top-[60px] left-1/2 -translate-x-1/2 md:absolute md:top-full md:right-0 md:left-auto md:-translate-x-0 mt-3 rounded-xl shadow-2xl z-50 overflow-hidden border w-[95vw] md:w-[320px]"
                     style={{ 
                       display: 'flex',
                       flexDirection: 'column',
-                      width: '320px',
-                      minWidth: '320px',
                       backgroundColor: 'var(--bg-elevated)', 
                       borderColor: 'var(--border-strong)',
                       boxShadow: '0 0 30px rgba(6, 182, 212, 0.15)'
@@ -439,6 +477,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </AnimatePresence>
             </div>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => router.push('/dashboard/profile')}
+              className="btn-icon cursor-pointer h-9 w-9"
+              title="MY_PROFILE"
+            >
+              <UserIcon className="w-4 h-4 text-emerald-400" />
+            </motion.button>
 
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -537,10 +585,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </AnimatePresence>
 
         {/* Page content */}
-        <main className="flex-1 relative z-0 py-8 px-6 sm:px-12 md:px-16 lg:px-20 xl:px-24">
+        <main className="flex-1 relative z-0 py-6 px-4 sm:py-8 sm:px-8 md:px-12 lg:px-16 xl:px-20">
           {children}
         </main>
       </div>
+
+      {/* Pop-up Toast Message */}
+      <AnimatePresence>
+        {popupNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: 50 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: 50, x: 50 }}
+            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[9999] p-4 rounded-xl shadow-2xl border flex flex-col gap-1 w-[90vw] sm:w-[320px] cursor-pointer font-mono"
+            style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-strong)' }}
+            onClick={() => {
+              if (popupNotification.link) router.push(popupNotification.link);
+              setPopupNotification(null);
+            }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-extrabold text-cyan-400 text-[10px] uppercase tracking-widest">{popupNotification.title}</span>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setPopupNotification(null); }} 
+                className="text-slate-500 hover:text-white p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-300 leading-relaxed line-clamp-2">{popupNotification.message}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

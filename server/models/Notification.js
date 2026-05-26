@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['message', 'call', 'system', 'task', 'leave'],
+    enum: ['message', 'call', 'system', 'task', 'leave', 'password_reset'],
     default: 'system'
   },
   title: {

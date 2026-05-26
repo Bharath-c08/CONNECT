@@ -250,7 +250,7 @@ export default function PayslipPage() {
             </div>
 
             {/* Month + Year */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="form-group">
                 <label className="form-label mb-1 flex items-center gap-1.5">
                   <Calendar className="w-3 h-3" /> MONTH *
@@ -282,7 +282,7 @@ export default function PayslipPage() {
             {/* Deductions */}
             <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">DEDUCTION RATES</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="form-group">
                   <label className="form-label mb-1">TDS %</label>
                   <input
@@ -405,7 +405,7 @@ export default function PayslipPage() {
               </div>
 
               {/* Work Summary */}
-              <div className="grid grid-cols-4 gap-0 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-0 border-b" style={{ borderColor: 'var(--border)' }}>
                 {[
                   { icon: Clock,        label: 'Working Days',  value: String(preview.workingDays),              color: 'text-indigo-400' },
                   { icon: Clock,        label: 'Total Hours',   value: `${preview.totalHours.toFixed(2)} hrs`,  color: 'text-blue-400' },

@@ -26,7 +26,27 @@ const UserSchema = new mongoose.Schema(
     basicPay: { type: Number, default: 0 }, // Hourly rate or base wage
     overtimeEligible: { type: Boolean, default: false },
     overtimePayPerMinute: { type: Number, default: 0 },
+    panDetails: { type: String },
+    aadhaarDetails: { type: String },
+    bankAccountNumber: { type: String },
+    accountHolderFullName: { type: String },
+    ifscCode: { type: String },
+    branchName: { type: String },
+    bloodGroup: { type: String },
+    emergencyContactNumber: { type: String },
+    emergencyContactName: { type: String },
     teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
+    leaveLimits: {
+      type: Map,
+      of: Number,
+      default: () => new Map([
+        ['sick', 10],
+        ['casual', 10],
+        ['annual', 15],
+        ['unpaid', 365],
+        ['other', 10]
+      ])
+    },
   },
   { timestamps: true }
 );

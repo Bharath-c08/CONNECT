@@ -94,6 +94,15 @@ export default function UserDirectoryPage() {
     basicPay: 0,
     overtimeEligible: false,
     overtimePayPerMinute: 0,
+    panDetails: '',
+    aadhaarDetails: '',
+    bankAccountNumber: '',
+    accountHolderFullName: '',
+    ifscCode: '',
+    branchName: '',
+    bloodGroup: '',
+    emergencyContactNumber: '',
+    emergencyContactName: '',
   });
 
   useEffect(() => {
@@ -143,6 +152,15 @@ export default function UserDirectoryPage() {
       basicPay: 0,
       overtimeEligible: false,
       overtimePayPerMinute: 0,
+      panDetails: '',
+      aadhaarDetails: '',
+      bankAccountNumber: '',
+      accountHolderFullName: '',
+      ifscCode: '',
+      branchName: '',
+      bloodGroup: '',
+      emergencyContactNumber: '',
+      emergencyContactName: '',
     });
     setError('');
     setSuccess('');
@@ -168,6 +186,15 @@ export default function UserDirectoryPage() {
       basicPay: user.basicPay || 0,
       overtimeEligible: user.overtimeEligible || false,
       overtimePayPerMinute: user.overtimePayPerMinute || 0,
+      panDetails: user.panDetails || '',
+      aadhaarDetails: user.aadhaarDetails || '',
+      bankAccountNumber: user.bankAccountNumber || '',
+      accountHolderFullName: user.accountHolderFullName || '',
+      ifscCode: user.ifscCode || '',
+      branchName: user.branchName || '',
+      bloodGroup: user.bloodGroup || '',
+      emergencyContactNumber: user.emergencyContactNumber || '',
+      emergencyContactName: user.emergencyContactName || '',
     });
     setError('');
     setSuccess('');
@@ -480,6 +507,27 @@ export default function UserDirectoryPage() {
                     <span className="text-emerald-500 font-bold">₹</span>
                     <span>WAGE_BAND: <strong className="font-bold text-emerald-400">₹{user.basicPay}/mo</strong></span>
                   </div>
+
+                  {(user.bankAccountNumber || user.panDetails) && (
+                    <div className="flex flex-col gap-1 border-t pt-2 mt-2" style={{ borderColor: 'var(--border)' }}>
+                      <span className="text-[9px] uppercase font-bold text-slate-500">Bank & Identity</span>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <span className="truncate">A/C: <span className="text-slate-300">{user.bankAccountNumber || '—'}</span></span>
+                        <span className="truncate">IFSC: <span className="text-slate-300">{user.ifscCode || '—'}</span></span>
+                        <span className="col-span-2 truncate">PAN: <span className="text-slate-300 uppercase">{user.panDetails || '—'}</span></span>
+                      </div>
+                    </div>
+                  )}
+
+                  {(user.bloodGroup || user.emergencyContactNumber) && (
+                    <div className="flex flex-col gap-1 border-t pt-2 mt-2" style={{ borderColor: 'var(--border)' }}>
+                      <span className="text-[9px] uppercase font-bold text-slate-500">Personal / Emergency</span>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <span className="truncate">Blood: <span className="text-rose-400 font-bold uppercase">{user.bloodGroup || '—'}</span></span>
+                        <span className="truncate">Emg Ph: <span className="text-slate-300">{user.emergencyContactNumber || '—'}</span></span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
  
@@ -713,6 +761,43 @@ export default function UserDirectoryPage() {
                       rows={2}
                       className="textarea"
                     />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <div className="form-group">
+                      <label className="form-label mb-1">Blood Group</label>
+                      <input type="text" name="bloodGroup" value={formData.bloodGroup} onChange={handleInputChange} className="input uppercase" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">Emg. Contact Name</label>
+                      <input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} className="input" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">Emg. Contact Phone</label>
+                      <input type="text" name="emergencyContactNumber" value={formData.emergencyContactNumber} onChange={handleInputChange} className="input" />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div className="form-group">
+                      <label className="form-label mb-1">PAN Details</label>
+                      <input type="text" name="panDetails" value={formData.panDetails} onChange={handleInputChange} className="input uppercase" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">Aadhaar Details</label>
+                      <input type="text" name="aadhaarDetails" value={formData.aadhaarDetails} onChange={handleInputChange} className="input" />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div className="form-group">
+                      <label className="form-label mb-1">Bank Account Number</label>
+                      <input type="text" name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleInputChange} className="input" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">IFSC Code</label>
+                      <input type="text" name="ifscCode" value={formData.ifscCode} onChange={handleInputChange} className="input uppercase" />
+                    </div>
                   </div>
                 </div>
 

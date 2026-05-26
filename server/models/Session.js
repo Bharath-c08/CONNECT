@@ -16,9 +16,18 @@ const SessionSchema = new mongoose.Schema(
     regularPay: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ['active', 'completed'],
+      enum: ['active', 'on_break', 'completed'],
       default: 'active',
     },
+    breaks: [{
+      breakType: { type: String, required: true },
+      duration: { type: Number, required: true }, // limit duration in minutes
+      startedAt: { type: Date, required: true },
+      endedAt: { type: Date }
+    }],
+    needsApproval: { type: Boolean, default: false },
+    approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'] },
+    autoClockedOut: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
