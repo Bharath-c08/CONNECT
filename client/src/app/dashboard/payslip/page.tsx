@@ -369,7 +369,7 @@ export default function PayslipPage() {
                 <div>
                   <img
                     src="/images/Markdot logo white.png"
-                    alt="Markdot"
+                    alt="Markdot Dotcore"
                     className="h-7 object-contain mb-2 opacity-90"
                   />
                   <p className="text-[8px] text-slate-500 font-mono uppercase tracking-widest">

@@ -138,13 +138,13 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-white/5 to-white/0 border border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] mb-4 w-24 h-24 overflow-hidden select-none">
             <img 
               src={theme === 'dark' ? "/images/Markdot logo white.png" : "/images/Markdot logo black.png"} 
-              alt="Markdot Intellect" 
+              alt="Markdot Dotcore" 
               className="w-full h-full object-contain shrink-0" 
             />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight font-mono" style={{ letterSpacing: '-1.5px' }}>
             <span className="opacity-60 font-bold">// MARKDOT_</span>
-            <span className="text-[#ef4444] font-black">CORE</span>
+            <span className="text-[#ef4444] font-black">DOTCORE</span>
           </h1>
           <p className="text-[9px] mt-2 uppercase tracking-widest font-mono font-bold opacity-60">TACTICAL DECK SECURITY GATEWAY</p>
         </motion.div>
@@ -355,7 +355,7 @@ export default function LoginPage() {
           className="text-center text-[9px] mt-6 tracking-widest uppercase font-mono"
           style={{ color: 'var(--text-muted)' }}
         >
-          &copy; 2026 MarkdotIntellect. secure core operator link established.
+          &copy; 2026 Markdot Dotcore. secure core operator link established.
         </motion.p>
       </div>
     </div>

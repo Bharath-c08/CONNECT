@@ -13,10 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MarkdotIntellect HRM | Team Management & Time Clock Hub",
-  description: "Advanced Human Resource Management platform for MarkdotIntellect. Manage Clock In/Out, employee profiles, team communication, task boards, and leave requests in a single, high-performance dark space bento interface.",
-  keywords: ["HRM", "Human Resource Management", "MarkdotIntellect", "Time Clock", "Shift Tracking", "Team Messaging", "Kanban Board", "Employee Directory"],
+  title: "Markdot Dotcore | Team Management & Time Clock Hub",
+  description: "Advanced Human Resource Management platform by Markdot Dotcore. Manage Clock In/Out, employee profiles, team communication, task boards, and leave requests in a single, high-performance dark space bento interface.",
+  keywords: ["HRM", "Human Resource Management", "Markdot Dotcore", "Time Clock", "Shift Tracking", "Team Messaging", "Kanban Board", "Employee Directory"],
+  icons: {
+    icon: "/images/favicon.ico",
+  },
 };
+
 
 export default function RootLayout({
   children,

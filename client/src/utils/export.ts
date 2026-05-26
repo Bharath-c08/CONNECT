@@ -140,7 +140,7 @@ export async function exportToPDF(
     doc.setFontSize(6.5);
     doc.setTextColor(71, 85, 105);
     doc.text(
-      `MARKDOT INTELLECT HRM  //  PAGE ${i} OF ${pageCount}`,
+      `MARKDOT DOTCORE HRM  //  PAGE ${i} OF ${pageCount}`,
       14,
       doc.internal.pageSize.getHeight() - 5
     );
@@ -207,12 +207,12 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.setTextColor(226, 232, 240);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('MARKDOT INTELLECT', W - 14, 13, { align: 'right' });
+  doc.text('MARKDOT DOTCORE', W - 14, 13, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   doc.text('Human Resource Management System', W - 14, 19, { align: 'right' });
-  doc.text('payroll@markdotintellect.com', W - 14, 25, { align: 'right' });
+  doc.text('support@markdotdotcore.com', W - 14, 25, { align: 'right' });
 
   // PAYSLIP title centered
   doc.setTextColor(239, 68, 68);
@@ -394,7 +394,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
   doc.text('This is a computer-generated payslip and does not require a signature.', W / 2, footerY, { align: 'center' });
-  doc.text('MARKDOT INTELLECT HRM  //  CONFIDENTIAL', W / 2, footerY + 5, { align: 'center' });
+  doc.text('MARKDOT DOTCORE HRM  //  CONFIDENTIAL', W / 2, footerY + 5, { align: 'center' });
 
   const month = data.period.month.toLowerCase().replace(' ', '_');
   doc.save(`payslip_${data.employee.employeeId}_${month}_${data.period.year}.pdf`);

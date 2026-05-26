@@ -68,6 +68,11 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
+if (!process.env.SUPER_ADMIN_PASSWORD) {
+  console.error('CRITICAL: SUPER_ADMIN_PASSWORD environment variable is missing from server/.env');
+  process.exit(1);
+}
+
 mongoose
   .connect(MONGODB_URI)
   .then(async () => {
@@ -193,14 +198,14 @@ async function seedSuperAdmin() {
     if (!superAdminExists) {
       console.log('No superadmin found. Seeding default superadmin...');
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('Mrkd0t@Sup3r!', salt);
+      const hashedPassword = await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD, salt);
 
       const defaultSuperAdmin = new User({
-        username: 'superadmin',
+        username: process.env.SUPER_ADMIN_USERNAME || 'superadmin',
         password: hashedPassword,
         role: 'superadmin',
         fullName: 'System Super Admin',
-        email: 'superadmin@markdotintellect.com',
+        email: process.env.SUPER_ADMIN_EMAIL || 'superadmin@markdotintellect.com',
         employeeId: 'EMP000',
         employmentType: 'fulltime',
         jobTitle: 'Chief Administrator',
@@ -215,7 +220,7 @@ async function seedSuperAdmin() {
       });
 
       await defaultSuperAdmin.save();
-      console.log('Default superadmin seeded: superadmin / Mrkd0t@Sup3r!');
+      console.log('Default superadmin seeded successfully.');
     } else {
       console.log('Superadmin already seeded in database.');
     }

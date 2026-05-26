@@ -276,7 +276,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link href="/dashboard" className="flex items-center select-none pt-2 pl-8">
               <img
                 src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
-                alt="Logo"
+                alt="Markdot Dotcore"
                 className="h-8 object-contain"
               />
             </Link>
@@ -284,7 +284,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="mx-auto w-8 h-8 flex items-center justify-center pt-2">
               <img
                 src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
-                alt="Logo"
+                alt="Markdot Dotcore"
                 className="w-full h-full object-contain"
               />
             </div>
@@ -539,7 +539,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link href="/dashboard" className="flex items-center select-none pt-2 pl-8">
                     <img
                       src={theme === 'dark' ? '/images/Markdot logo white.png' : '/images/Markdot logo black.png'}
-                      alt="Logo"
+                      alt="Markdot Dotcore"
                       className="h-8 object-contain"
                     />
                   </Link>
