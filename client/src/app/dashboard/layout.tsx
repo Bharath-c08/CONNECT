@@ -85,21 +85,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setUser(fetchedUser);
     }
 
-    // Double check authentication with backend and sync roles
-    const checkAuth = async () => {
-      try {
-        const userProfile = await apiRequest('/auth/me');
-        setUser(userProfile);
-        localStorage.setItem('user', JSON.stringify(userProfile));
-        fetchNotifications();
-      } catch (err) {
-        // Token might be invalid or expired
-        removeAuthToken();
-        router.push('/');
-      }
-    };
-    checkAuth();
-
     // Check time clock status
     const checkClockStatus = async () => {
       try {
@@ -109,7 +94,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         console.error('Error fetching clock status:', err);
       }
     };
-    checkClockStatus();
+
+    // Double check authentication with backend and sync roles
+    const checkAuth = async () => {
+      try {
+        const userProfile = await apiRequest('/auth/me');
+        setUser(userProfile);
+        localStorage.setItem('user', JSON.stringify(userProfile));
+        fetchNotifications();
+        await checkClockStatus();
+      } catch (err) {
+        // Token might be invalid or expired
+        removeAuthToken();
+        router.push('/');
+      }
+    };
+    checkAuth();
 
     // Running clock logic
     const updateTime = () => {
