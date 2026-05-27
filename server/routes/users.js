@@ -17,41 +17,33 @@ router.get('/', verifyToken, async (req, res) => {
       // Super Admin sees all profiles (excluding passwords)
       users = await User.find({}).select('-password');
     } else if (isAdmin) {
-      // Admins see standard users assigned to them plus themselves, excluding super admins
+      // Admins see standard users assigned to them plus themselves, and super admins
       users = await User.find({
-        $and: [
-          { role: { $ne: 'superadmin' } },
-          {
-            $or: [
-              { _id: req.user.userId },
-              { assignedAdmin: req.user.userId }
-            ]
-          }
+        $or: [
+          { role: 'superadmin' },
+          { _id: req.user.userId },
+          { assignedAdmin: req.user.userId }
         ]
       }).select('-password');
     } else {
-      // Regular employees see peers under the same admin and the admin itself, excluding super admins
+      // Regular employees see peers under the same admin, the admin itself, and super admins
       const currentUser = await User.findById(req.user.userId);
       const assignedAdminId = currentUser?.assignedAdmin;
       
       if (assignedAdminId) {
         users = await User.find({
-          $and: [
-            { role: { $ne: 'superadmin' } },
-            {
-              $or: [
-                { _id: assignedAdminId },
-                { assignedAdmin: assignedAdminId }
-              ]
-            }
+          $or: [
+            { role: 'superadmin' },
+            { _id: assignedAdminId },
+            { assignedAdmin: assignedAdminId }
           ]
         }).select('fullName role jobTitle _id employeeId email assignedAdmin');
       } else {
-        // If a user has no assigned admin, they only see themselves in the workspace directory
+        // If a user has no assigned admin, they see themselves and super admins
         users = await User.find({
-          $and: [
-            { _id: req.user.userId },
-            { role: { $ne: 'superadmin' } }
+          $or: [
+            { role: 'superadmin' },
+            { _id: req.user.userId }
           ]
         }).select('fullName role jobTitle _id employeeId email');
       }

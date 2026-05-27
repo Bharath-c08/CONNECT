@@ -111,6 +111,9 @@ router.post('/forgot-password-request', async (req, res) => {
       return res.json({ message: 'If that username exists, a request has been sent to the administrator.' });
     }
 
+    // Find the superadmin to notify
+    const superAdmin = await User.findOne({ role: 'superadmin' });
+
     // Find the admin to notify (assigned admin first, then fallback to any active admin)
     let adminToNotify = null;
     if (requestingUser.assignedAdmin) {
@@ -120,19 +123,36 @@ router.post('/forgot-password-request', async (req, res) => {
       adminToNotify = await User.findOne({ role: 'admin' });
     }
 
-    if (!adminToNotify) {
+    // Collect all unique administrative recipient IDs
+    const recipients = new Set();
+    if (superAdmin) {
+      recipients.add(superAdmin._id.toString());
+    }
+    if (adminToNotify) {
+      recipients.add(adminToNotify._id.toString());
+    }
+
+    if (recipients.size === 0) {
       return res.status(500).json({ message: 'Unable to reach administrator. No active administrative operator is registered.' });
     }
 
-    // Create the notification
+    // Create the notification in DB and emit real-time WebSockets
     const Notification = (await import('../models/Notification.js')).default;
-    await Notification.create({
-      recipientId: adminToNotify._id,
-      type: 'password_reset',
-      title: 'Password Reset Request',
-      message: `User "${requestingUser.fullName || username}" (${username}) has requested a password reset. Please update their password manually.`,
-      link: '/dashboard',
-    });
+    const io = req.app.get('io');
+
+    for (const recipientId of recipients) {
+      const notif = await Notification.create({
+        recipientId,
+        type: 'password_reset',
+        title: 'Password Reset Request',
+        message: `User "${requestingUser.fullName || username}" (${username}) has requested a password reset. Please update their password manually.`,
+        link: '/dashboard',
+      });
+
+      if (io) {
+        io.to(recipientId).emit('new-notification', notif);
+      }
+    }
 
     res.json({ message: 'Your request has been sent to the administrator. Please wait for assistance.' });
   } catch (error) {
