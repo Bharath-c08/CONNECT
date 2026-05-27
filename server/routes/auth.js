@@ -111,16 +111,23 @@ router.post('/forgot-password-request', async (req, res) => {
       return res.json({ message: 'If that username exists, a request has been sent to the administrator.' });
     }
 
-    // Find the superadmin to notify
-    const superadmin = await User.findOne({ role: 'superadmin' });
-    if (!superadmin) {
-      return res.status(500).json({ message: 'Unable to reach administrator. Please contact support.' });
+    // Find the admin to notify (assigned admin first, then fallback to any active admin)
+    let adminToNotify = null;
+    if (requestingUser.assignedAdmin) {
+      adminToNotify = await User.findOne({ _id: requestingUser.assignedAdmin, role: 'admin' });
+    }
+    if (!adminToNotify) {
+      adminToNotify = await User.findOne({ role: 'admin' });
+    }
+
+    if (!adminToNotify) {
+      return res.status(500).json({ message: 'Unable to reach administrator. No active administrative operator is registered.' });
     }
 
     // Create the notification
     const Notification = (await import('../models/Notification.js')).default;
     await Notification.create({
-      recipientId: superadmin._id,
+      recipientId: adminToNotify._id,
       type: 'password_reset',
       title: 'Password Reset Request',
       message: `User "${requestingUser.fullName || username}" (${username}) has requested a password reset. Please update their password manually.`,

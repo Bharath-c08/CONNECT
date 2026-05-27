@@ -17,28 +17,43 @@ router.get('/', verifyToken, async (req, res) => {
       // Super Admin sees all profiles (excluding passwords)
       users = await User.find({}).select('-password');
     } else if (isAdmin) {
-      // Admins see standard users assigned to them plus themselves
+      // Admins see standard users assigned to them plus themselves, excluding super admins
       users = await User.find({
-        $or: [
-          { _id: req.user.userId },
-          { assignedAdmin: req.user.userId }
+        $and: [
+          { role: { $ne: 'superadmin' } },
+          {
+            $or: [
+              { _id: req.user.userId },
+              { assignedAdmin: req.user.userId }
+            ]
+          }
         ]
       }).select('-password');
     } else {
-      // Regular employees see peers under the same admin and the admin itself
+      // Regular employees see peers under the same admin and the admin itself, excluding super admins
       const currentUser = await User.findById(req.user.userId);
       const assignedAdminId = currentUser?.assignedAdmin;
       
       if (assignedAdminId) {
         users = await User.find({
-          $or: [
-            { _id: assignedAdminId },
-            { assignedAdmin: assignedAdminId }
+          $and: [
+            { role: { $ne: 'superadmin' } },
+            {
+              $or: [
+                { _id: assignedAdminId },
+                { assignedAdmin: assignedAdminId }
+              ]
+            }
           ]
         }).select('fullName role jobTitle _id employeeId email assignedAdmin');
       } else {
         // If a user has no assigned admin, they only see themselves in the workspace directory
-        users = await User.find({ _id: req.user.userId }).select('fullName role jobTitle _id employeeId email');
+        users = await User.find({
+          $and: [
+            { _id: req.user.userId },
+            { role: { $ne: 'superadmin' } }
+          ]
+        }).select('fullName role jobTitle _id employeeId email');
       }
     }
     
