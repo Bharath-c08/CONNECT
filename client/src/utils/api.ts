@@ -1,11 +1,20 @@
 export const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
   if (typeof window !== 'undefined') {
     return `http://${window.location.hostname}:5000/api`;
   }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  return 'http://localhost:5000/api';
 };
 
 export const getSocketUrl = () => {
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+    return process.env.NEXT_PUBLIC_SOCKET_URL;
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '');
+  }
   if (typeof window !== 'undefined') {
     return `http://${window.location.hostname}:5000`;
   }
