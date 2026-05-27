@@ -20,7 +20,8 @@ import {
   MoreVertical,
   ArrowLeft,
   CheckCheck,
-  Binary
+  Binary,
+  Trash
 } from 'lucide-react';
 import { apiRequest, getCurrentUser, getSocketUrl } from '../../../utils/api';
 
@@ -98,6 +99,10 @@ export default function ChatHubPage() {
       if (isTeamMsg || isDirectMsg) {
         setMessages((prev) => [...prev, message]);
       }
+    });
+
+    socket.on('message-deleted', (deletedMessageId: string) => {
+      setMessages((prev) => prev.filter((msg) => msg._id !== deletedMessageId));
     });
 
     fetchChannels(currentUser);
@@ -196,6 +201,19 @@ export default function ChatHubPage() {
 
     socketRef.current.emit('send-message', payload);
     setNewMessage('');
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!confirm('Are you sure you want to delete this message?')) return;
+    try {
+      await apiRequest(`/chats/${messageId}`, {
+        method: 'DELETE',
+      });
+      setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+    } catch (err: any) {
+      console.error('Error deleting message:', err);
+      alert(err.message || 'Failed to delete message.');
+    }
   };
 
   const scrollToBottom = () => {
@@ -616,6 +634,16 @@ export default function ChatHubPage() {
                               <span>{timeString}</span>
                               {isMe && (
                                 <CheckCheck className="w-3.5 h-3.5 text-brand shrink-0" />
+                              )}
+                              {(isMe || isAdmin) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMessage(msg._id)}
+                                  className="ml-2 text-rose-500 hover:text-rose-400 hover:scale-110 transition-all cursor-pointer flex items-center justify-center p-0.5 rounded border border-transparent hover:border-rose-500/20 bg-transparent"
+                                  title="DELETE_MESSAGE"
+                                >
+                                  <Trash className="w-3 h-3" />
+                                </button>
                               )}
                             </div>
                           </motion.div>

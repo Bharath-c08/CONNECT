@@ -50,4 +50,40 @@ router.get('/direct/:otherUserId', verifyToken, async (req, res) => {
   }
 });
 
+// @route   DELETE /api/chats/:messageId
+// @desc    Delete a message (sender, admin, or superadmin)
+router.delete('/:messageId', verifyToken, async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.messageId);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    // Verify ownership: sender or admin/superadmin
+    const isSender = message.senderId.toString() === req.user.userId;
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+
+    if (!isSender && !isAdmin) {
+      return res.status(403).json({ message: 'Access denied. You can only delete your own messages.' });
+    }
+
+    await Message.findByIdAndDelete(req.params.messageId);
+
+    // Emit real-time deletion over WebSocket
+    const io = req.app.get('io');
+    if (io) {
+      if (message.teamId) {
+        io.to(message.teamId.toString()).emit('message-deleted', message._id.toString());
+      } else if (message.recipientId) {
+        io.to(message.senderId.toString()).emit('message-deleted', message._id.toString());
+        io.to(message.recipientId.toString()).emit('message-deleted', message._id.toString());
+      }
+    }
+
+    res.json({ message: 'Message deleted successfully.', messageId: message._id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting message', error: error.message });
+  }
+});
+
 export default router;
