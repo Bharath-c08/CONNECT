@@ -1,0 +1,25 @@
+# Hostinger SPA Routing & Next.js Static Export Rewrite Configuration
+RewriteEngine On
+RewriteBase /
+
+# 1. If file exists, serve it directly
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# 2. If directory exists and contains index.html, serve it
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f
+RewriteRule ^(.*)$ $1/index.html [L]
+
+# 3. Rewrite extension-less URLs to HTML files if they exist (e.g. /dashboard -> /dashboard.html)
+RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+RewriteRule ^(.*)$ $1.html [L]
+
+# 4. Rewrite dynamic meeting paths to the statically compiled dynamic template
+RewriteCond %{REQUEST_URI} ^/dashboard/meet/[^/]+$
+RewriteRule ^(.*)$ dashboard/meet/room/index.html [L]
+
+# 5. General fallback for client-side routing to index.html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
