@@ -288,6 +288,8 @@ router.get('/admin/payslip-data', verifyToken, isAdminOrSuperAdmin, async (req, 
       userId,
       clockIn: { $gte: startDate, $lt: endDate },
       status: 'completed',
+      needsApproval: false,
+      approvalStatus: { $ne: 'rejected' }
     });
 
     const employee = await User.findById(userId).select('-password');
@@ -500,6 +502,30 @@ router.put('/admin/reject-shift/:id', verifyToken, isAdminOrSuperAdmin, async (r
     res.json({ message: 'Shift session rejected successfully.', session });
   } catch (err) {
     res.status(500).json({ message: 'Error rejecting shift session', error: err.message });
+  }
+});
+
+// @route   PUT /api/clock/admin/session/:id
+// @desc    Edit any shift session details (Admins only)
+router.put('/admin/session/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  const { clockIn, clockOut, duration, shiftType, approvalStatus, needsApproval } = req.body;
+
+  try {
+    const session = await Session.findById(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Shift session not found.' });
+
+    if (clockIn !== undefined) session.clockIn = new Date(clockIn);
+    if (clockOut !== undefined) session.clockOut = clockOut ? new Date(clockOut) : null;
+    if (duration !== undefined) session.duration = Number(duration);
+    if (shiftType !== undefined) session.shiftType = shiftType;
+    if (approvalStatus !== undefined) session.approvalStatus = approvalStatus;
+    if (needsApproval !== undefined) session.needsApproval = needsApproval;
+
+    await session.save();
+
+    res.json({ message: 'Shift session updated successfully.', session });
+  } catch (err) {
+    res.status(500).json({ message: 'Error editing shift session', error: err.message });
   }
 });
 

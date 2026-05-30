@@ -51,6 +51,7 @@ export default function ChatHubPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -82,7 +83,12 @@ export default function ChatHubPage() {
       const myId = myIdRef.current;
       if (myId) {
         socket.emit('join-room', myId);
+        socket.emit('register-user', myId);
       }
+    });
+
+    socket.on('active-users-list', (usersList: string[]) => {
+      setOnlineUserIds(usersList);
     });
 
     socket.on('receive-message', (message: any) => {
@@ -461,7 +467,11 @@ export default function ChatHubPage() {
                         >
                           {getInitials(emp.fullName)}
                         </div>
-                        <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-zinc-950 shadow-sm" />
+                        {onlineUserIds.includes(emp._id) ? (
+                          <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-zinc-950 shadow-sm" />
+                        ) : (
+                          <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-zinc-700 border border-zinc-950 shadow-sm opacity-60" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-center">
@@ -541,7 +551,11 @@ export default function ChatHubPage() {
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-xs font-extrabold tracking-widest truncate text-white uppercase">{selectedUser.fullName}</h3>
-                          <p className="text-[9px] font-bold text-emerald-500 tracking-wider mt-0.5">UPLINK_ESTABLISHED</p>
+                          {onlineUserIds.includes(selectedUser._id) ? (
+                            <p className="text-[9px] font-bold text-emerald-500 tracking-wider mt-0.5">UPLINK_ESTABLISHED</p>
+                          ) : (
+                            <p className="text-[9px] font-bold text-slate-500 tracking-wider mt-0.5 opacity-65">LINK_OFFLINE</p>
+                          )}
                         </div>
                       </>
                     )}

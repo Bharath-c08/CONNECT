@@ -50,6 +50,10 @@ const UserSchema = new mongoose.Schema(
         ['other', 10]
       ])
     },
+    disabledLeaves: {
+      type: [String],
+      default: []
+    },
   },
   { timestamps: true }
 );

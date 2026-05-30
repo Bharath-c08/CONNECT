@@ -5,7 +5,6 @@ const LeaveRequestSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     leaveType: {
       type: String,
-      enum: ['sick', 'casual', 'annual', 'unpaid', 'other'],
       required: true,
     },
     startDate: { type: Date, required: true },

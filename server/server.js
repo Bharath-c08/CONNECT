@@ -12,6 +12,7 @@ import Message from './models/Message.js';
 import Notification from './models/Notification.js';
 import Task from './models/Task.js';
 import Session from './models/Session.js';
+import LeaveCategory from './models/LeaveCategory.js';
 
 // Import Routes
 import authRoutes from './routes/auth.js';
@@ -78,6 +79,7 @@ mongoose
   .then(async () => {
     console.log('MongoDB connected successfully.');
     await seedSuperAdmin();
+    await seedDefaultLeaveCategories();
     
     // Start listening on port
     server.listen(PORT, () => {
@@ -123,10 +125,11 @@ mongoose
             for (const session of activeSessions) {
               const limitMins = session.sessionLimitMinutes !== undefined ? session.sessionLimitMinutes : (9 * 60);
               const limitMs = limitMins * 60 * 1000;
+              const bufferMs = 5 * 60 * 1000; // 5-minute excess buffer
               const elapsedMs = Date.now() - session.clockIn.getTime();
 
-              if (elapsedMs >= limitMs) {
-                const clockOutTime = new Date(session.clockIn.getTime() + limitMs);
+              if (elapsedMs >= limitMs + bufferMs) {
+                const clockOutTime = new Date(session.clockIn.getTime() + limitMs + bufferMs);
                 
                 // Auto-conclude breaks if still open
                 session.breaks.forEach((b) => {
@@ -145,7 +148,7 @@ mongoose
                   totalBreaksMinutes += (actualDurationMins + excessMins);
                 });
 
-                const netWorkingMins = Math.max(0, limitMins - totalBreaksMinutes);
+                const netWorkingMins = Math.max(0, (limitMins + 5) - totalBreaksMinutes);
 
                 session.clockOut = clockOutTime;
                 session.duration = netWorkingMins;
@@ -229,9 +232,46 @@ async function seedSuperAdmin() {
   }
 }
 
+// Seeding Default Leave Categories
+async function seedDefaultLeaveCategories() {
+  try {
+    const categoryCount = await LeaveCategory.countDocuments();
+    if (categoryCount === 0) {
+      console.log('No leave categories found. Seeding default categories...');
+      const defaultCategories = [
+        { name: 'sick', label: 'Sick Leave Protocol', defaultDays: 10, isActive: true },
+        { name: 'casual', label: 'Casual Disconnect', defaultDays: 10, isActive: true },
+        { name: 'annual', label: 'Annual Departure (Vacation)', defaultDays: 15, isActive: true },
+        { name: 'unpaid', label: 'Unpaid Sleep Mode', defaultDays: 365, isActive: true },
+        { name: 'other', label: 'Other / Emergency Cooldown', defaultDays: 10, isActive: true }
+      ];
+      await LeaveCategory.insertMany(defaultCategories);
+      console.log('Default leave categories seeded successfully.');
+    }
+  } catch (error) {
+    console.error('Error seeding default leave categories:', error);
+  }
+}
+
+// Track online users mapping: userId -> Set of socket.ids
+const onlineUsers = new Map();
+
 // Socket.io WebSocket Connections for Chat
 io.on('connection', (socket) => {
   console.log('WebSocket client connected:', socket.id);
+
+  // Register user and track active session
+  socket.on('register-user', (userId) => {
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId).add(socket.id);
+    socket.userId = userId;
+    
+    // Broadcast active users list to all clients
+    io.emit('active-users-list', Array.from(onlineUsers.keys()));
+    console.log(`User registered: ${userId}. Active users count: ${onlineUsers.size}`);
+  });
 
   // Join a room (can be teamId or composite personal room)
   socket.on('join-room', (roomId) => {
@@ -345,6 +385,18 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('WebSocket client disconnected:', socket.id);
+    if (socket.userId) {
+      const userSockets = onlineUsers.get(socket.userId);
+      if (userSockets) {
+        userSockets.delete(socket.id);
+        if (userSockets.size === 0) {
+          onlineUsers.delete(socket.userId);
+        }
+      }
+      // Broadcast updated online list to everyone
+      io.emit('active-users-list', Array.from(onlineUsers.keys()));
+      console.log(`User offline: ${socket.userId}. Active users count: ${onlineUsers.size}`);
+    }
   });
 });
 // Nodemon refresh trigger

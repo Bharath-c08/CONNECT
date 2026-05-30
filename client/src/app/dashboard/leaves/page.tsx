@@ -46,7 +46,7 @@ export default function LeavesPlannerPage() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [myAllowances, setMyAllowances] = useState<any>({ limits: {}, usage: {} });
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'my' | 'admin_pending' | 'admin_history' | 'admin_limits'>('my');
+  const [tab, setTab] = useState<'my' | 'admin_pending' | 'admin_history' | 'admin_limits' | 'admin_policies'>('my');
 
   // Request Modal Form states
   const [requestModalOpen, setRequestModalOpen] = useState(false);
@@ -60,12 +60,18 @@ export default function LeavesPlannerPage() {
   // Limit Customize Modal states (Admins)
   const [limitsModalOpen, setLimitsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [customLimits, setCustomLimits] = useState({
-    sick: 10,
-    casual: 10,
-    annual: 15,
-    unpaid: 365,
-    other: 10
+  const [customLimits, setCustomLimits] = useState<Record<string, number>>({});
+  const [enabledStates, setEnabledStates] = useState<Record<string, boolean>>({});
+
+  // Policy Editor Modal states (Admins)
+  const [globalCategories, setGlobalCategories] = useState<any[]>([]);
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [policyFormData, setPolicyFormData] = useState({
+    name: '',
+    label: '',
+    defaultDays: 10,
+    isActive: true
   });
 
   const [error, setError] = useState('');
@@ -91,6 +97,7 @@ export default function LeavesPlannerPage() {
         fetchPersonalData();
       }
     }
+    fetchCategories();
 
     // Connect to global socket for real-time leave status adjustments
     const socket = io(getSocketUrl());
@@ -109,12 +116,22 @@ export default function LeavesPlannerPage() {
           fetchPersonalData();
         }
       }
+      fetchCategories();
     });
 
     return () => {
       socket.disconnect();
     };
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const cats = await apiRequest('/leaves/categories');
+      setGlobalCategories(cats);
+    } catch (err) {
+      console.error('Error fetching global leave categories:', err);
+    }
+  };
 
   const fetchPersonalData = async () => {
     setLoading(true);
@@ -142,6 +159,9 @@ export default function LeavesPlannerPage() {
 
       const employees = await apiRequest('/users');
       setStaffList(employees);
+
+      const cats = await apiRequest('/leaves/categories');
+      setGlobalCategories(cats);
     } catch (err) {
       console.error('Error fetching company leaves logs:', err);
     } finally {
@@ -155,8 +175,13 @@ export default function LeavesPlannerPage() {
   };
 
   const openRequestModal = () => {
+    const userCategories = myAllowances.categories || [];
+    const disabledSet = new Set(myAllowances.disabled || []);
+    const available = userCategories.filter((c: any) => !disabledSet.has(c.name));
+    const firstAvailable = available[0]?.name || 'sick';
+
     setFormData({
-      leaveType: 'sick',
+      leaveType: firstAvailable,
       startDate: '',
       endDate: '',
       reason: '',
@@ -204,21 +229,17 @@ export default function LeavesPlannerPage() {
   const openLimitsModal = (emp: any) => {
     setSelectedUser(emp);
     
-    // Fallbacks for limits
-    const defaults = { sick: 10, casual: 10, annual: 15, unpaid: 365, other: 10 };
-    const sickVal = emp.leaveLimits?.sick ?? defaults.sick;
-    const casualVal = emp.leaveLimits?.casual ?? defaults.casual;
-    const annualVal = emp.leaveLimits?.annual ?? defaults.annual;
-    const unpaidVal = emp.leaveLimits?.unpaid ?? defaults.unpaid;
-    const otherVal = emp.leaveLimits?.other ?? defaults.other;
+    const limits: Record<string, number> = {};
+    const enabled: Record<string, boolean> = {};
 
-    setCustomLimits({
-      sick: Number(sickVal),
-      casual: Number(casualVal),
-      annual: Number(annualVal),
-      unpaid: Number(unpaidVal),
-      other: Number(otherVal)
+    globalCategories.forEach((c: any) => {
+      const isD = (emp.disabledLeaves || []).includes(c.name);
+      enabled[c.name] = !isD;
+      limits[c.name] = Number(getLimitValue(emp, c.name));
     });
+
+    setCustomLimits(limits);
+    setEnabledStates(enabled);
     setError('');
     setSuccess('');
     setLimitsModalOpen(true);
@@ -230,9 +251,19 @@ export default function LeavesPlannerPage() {
     setSuccess('');
 
     try {
+      const disabledList: string[] = [];
+      Object.entries(enabledStates).forEach(([key, isEnabled]) => {
+        if (!isEnabled) {
+          disabledList.push(key);
+        }
+      });
+
       await apiRequest(`/leaves/limits/${selectedUser._id}`, {
         method: 'PUT',
-        body: JSON.stringify({ limits: customLimits }),
+        body: JSON.stringify({
+          limits: customLimits,
+          disabledLeaves: disabledList
+        }),
       });
 
       setSuccess(`LEAVE CATEGORIES CUSTOMIZED SUCCESSFULLY FOR ${selectedUser.fullName.toUpperCase()}.`);
@@ -243,9 +274,12 @@ export default function LeavesPlannerPage() {
     }
   };
 
-  const handleLimitInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setCustomLimits(prev => ({ ...prev, [name]: Number(value) }));
+  const handleLimitInputChange = (key: string, value: number) => {
+    setCustomLimits(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleResetToDefaultLimit = (type: string, defaultDays: number) => {
+    setCustomLimits(prev => ({ ...prev, [type]: defaultDays }));
   };
 
   const handleResetLeave = async (leaveType: string) => {
@@ -262,6 +296,81 @@ export default function LeavesPlannerPage() {
       fetchAdminData();
     } catch (err: any) {
       setError(err.message || 'COULD NOT RESET LEAVE BALANCE.');
+    }
+  };
+
+  const openPolicyAddModal = () => {
+    setEditingCategory(null);
+    setPolicyFormData({
+      name: '',
+      label: '',
+      defaultDays: 10,
+      isActive: true
+    });
+    setError('');
+    setSuccess('');
+    setPolicyModalOpen(true);
+  };
+
+  const openPolicyEditModal = (cat: any) => {
+    setEditingCategory(cat);
+    setPolicyFormData({
+      name: cat.name,
+      label: cat.label,
+      defaultDays: cat.defaultDays,
+      isActive: cat.isActive
+    });
+    setError('');
+    setSuccess('');
+    setPolicyModalOpen(true);
+  };
+
+  const handlePolicySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    try {
+      if (editingCategory) {
+        // Update
+        await apiRequest(`/leaves/categories/${editingCategory._id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            label: policyFormData.label,
+            defaultDays: Number(policyFormData.defaultDays),
+            isActive: policyFormData.isActive
+          })
+        });
+        setSuccess(`LEAVE CATEGORY "${policyFormData.label.toUpperCase()}" UPDATED SUCCESSFULLY.`);
+      } else {
+        // Create
+        await apiRequest('/leaves/categories', {
+          method: 'POST',
+          body: JSON.stringify(policyFormData)
+        });
+        setSuccess(`NEW LEAVE CATEGORY "${policyFormData.label.toUpperCase()}" ADDED SUCCESSFULLY.`);
+      }
+
+      setPolicyModalOpen(false);
+      fetchCategories();
+    } catch (err: any) {
+      setError(err.message || 'COULD NOT SAVE LEAVE POLICY CONSTRAINTS.');
+    }
+  };
+
+  const handleCategoryDelete = async (id: string, name: string) => {
+    if (!confirm(`CONFIRM DELETION OF POLICY SCHEMA "${name.toUpperCase()}"? IF THE CATEGORY HAS ACTIVE USER ENTRIES, IT WILL BE SOFT-DISABLED INSTEAD.`)) return;
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await apiRequest(`/leaves/categories/${id}`, {
+        method: 'DELETE'
+      });
+      setSuccess(res.message || 'POLICY DELETED.');
+      fetchCategories();
+    } catch (err: any) {
+      setError(err.message || 'COULD NOT COMPLETE POLICY DELETION.');
     }
   };
 
@@ -324,6 +433,9 @@ export default function LeavesPlannerPage() {
   };
 
   const getLeaveTypeTag = (type: string) => {
+    const matched = globalCategories.find(c => c.name === type) || myAllowances.categories?.find((c: any) => c.name === type);
+    const labelText = matched ? matched.label : type;
+
     switch (type) {
       case 'sick':
         return <span className="text-rose-400 uppercase text-[9px] font-extrabold bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-sm select-none shrink-0">SICK_OFF</span>;
@@ -334,18 +446,19 @@ export default function LeavesPlannerPage() {
       case 'unpaid':
         return <span className="text-slate-400 uppercase text-[9px] font-extrabold bg-white/5 border border-white/10 px-2 py-0.5 rounded-sm select-none shrink-0">UNPAID_OFF</span>;
       default:
-        return <span className="text-amber-400 uppercase text-[9px] font-extrabold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-sm select-none shrink-0">SPECIAL_OFF</span>;
+        return <span className="text-amber-400 uppercase text-[9px] font-extrabold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-sm select-none shrink-0">{labelText.replace(/leave/gi, 'off').toUpperCase()}</span>;
     }
   };
 
   const getLimitValue = (emp: any, type: string) => {
-    const defaults = { sick: 10, casual: 10, annual: 15, unpaid: 365, other: 10 } as any;
-    if (!emp?.leaveLimits) return defaults[type];
-    // Map vs plain object safe extraction
+    const matched = globalCategories.find(c => c.name === type);
+    const defaultDays = matched ? matched.defaultDays : 10;
+
+    if (!emp?.leaveLimits) return defaultDays;
     if (typeof emp.leaveLimits.get === 'function') {
-      return emp.leaveLimits.get(type) ?? defaults[type];
+      return emp.leaveLimits.get(type) ?? defaultDays;
     }
-    return emp.leaveLimits[type] ?? defaults[type];
+    return emp.leaveLimits[type] ?? defaultDays;
   };
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
@@ -417,6 +530,12 @@ export default function LeavesPlannerPage() {
                 >
                   OPERATOR_BALANCES
                 </button>
+                <button
+                  onClick={() => { setTab('admin_policies'); fetchCategories(); }}
+                  className={`tab-btn relative cursor-pointer ${tab === 'admin_policies' ? 'active' : ''}`}
+                >
+                  POLICY_EDITOR
+                </button>
               </>
             )}
             <button
@@ -455,40 +574,43 @@ export default function LeavesPlannerPage() {
           transition={springTransition}
           className="grid grid-cols-2 md:grid-cols-5 gap-4"
         >
-          {['sick', 'casual', 'annual', 'unpaid', 'other'].map((type) => {
-            const limit = myAllowances.limits[type] || 0;
-            const used = myAllowances.usage[type] || 0;
-            const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-            
-            return (
-              <div 
-                key={type} 
-                className="p-3.5 rounded border border-white/5 relative overflow-hidden select-none"
-                style={{ backgroundColor: 'var(--bg-card)' }}
-              >
-                <div className="absolute top-1 left-2 text-[6px] opacity-15 uppercase">{type}_TELEMETRY</div>
-                <div className="flex justify-between items-center mb-2.5 mt-1.5">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400">{type} balance</span>
-                  <span className="text-[10px] font-black text-white">{used} / {limit} D</span>
+          {(myAllowances.categories || [])
+            .filter((c: any) => !(myAllowances.disabled || []).includes(c.name))
+            .map((c: any) => {
+              const type = c.name;
+              const limit = myAllowances.limits[type] ?? c.defaultDays;
+              const used = myAllowances.usage[type] || 0;
+              const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+              
+              return (
+                <div 
+                  key={type} 
+                  className="p-3.5 rounded border border-white/5 relative overflow-hidden select-none"
+                  style={{ backgroundColor: 'var(--bg-card)' }}
+                >
+                  <div className="absolute top-1 left-2 text-[6px] opacity-15 uppercase">{type}_TELEMETRY</div>
+                  <div className="flex justify-between items-center mb-2.5 mt-1.5 font-mono">
+                    <span className="text-[10px] font-extrabold uppercase text-slate-400">{c.label}</span>
+                    <span className="text-[10px] font-black text-white">{used} / {limit} D</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-white/5">
+                    <div 
+                      className={`h-full transition-all ${
+                        percent > 80 ? 'bg-rose-500' : percent > 50 ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center mt-1.5 text-[8px] uppercase tracking-wider text-slate-500 font-mono">
+                    <span>Usage (This Month):</span>
+                    <span className={percent > 80 ? 'text-rose-400 font-bold' : percent > 50 ? 'text-amber-400 font-bold' : 'text-slate-500'}>
+                      {percent}% LOADED
+                    </span>
+                  </div>
                 </div>
-                {/* Progress bar */}
-                <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-white/5">
-                  <div 
-                    className={`h-full transition-all ${
-                      percent > 80 ? 'bg-rose-500' : percent > 50 ? 'bg-amber-400' : 'bg-emerald-400'
-                    }`}
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-1.5 text-[8px] uppercase tracking-wider text-slate-500">
-                  <span>Usage Meter:</span>
-                  <span className={percent > 80 ? 'text-rose-400 font-bold' : percent > 50 ? 'text-amber-400 font-bold' : 'text-slate-500'}>
-                    {percent}% LOADED
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </motion.div>
       )}
 
@@ -595,11 +717,9 @@ export default function LeavesPlannerPage() {
                   <thead>
                     <tr className="border-b bg-zinc-950/50 font-extrabold text-slate-400 uppercase tracking-widest" style={{ borderColor: 'var(--border)' }}>
                       <th className="py-3.5 px-5">OPERATOR</th>
-                      <th className="py-3.5 px-5 text-center">SICK LIMIT</th>
-                      <th className="py-3.5 px-5 text-center">CASUAL LIMIT</th>
-                      <th className="py-3.5 px-5 text-center">ANNUAL LIMIT</th>
-                      <th className="py-3.5 px-5 text-center">UNPAID LIMIT</th>
-                      <th className="py-3.5 px-5 text-center">OTHER LIMIT</th>
+                      {globalCategories.filter((c: any) => c.isActive).map((c: any) => (
+                        <th key={c.name} className="py-3.5 px-5 text-center uppercase">{c.label}</th>
+                      ))}
                       <th className="py-3.5 px-5 text-right">ACTION</th>
                     </tr>
                   </thead>
@@ -613,11 +733,19 @@ export default function LeavesPlannerPage() {
                           </div>
                           <div className="text-[9px] text-slate-500 mt-0.5 tracking-wider uppercase">{emp.jobTitle} &bull; ID: {emp.employeeId}</div>
                         </td>
-                        <td className="py-3 px-5 text-center font-bold text-rose-400">{getLimitValue(emp, 'sick')} DAYS</td>
-                        <td className="py-3 px-5 text-center font-bold text-indigo-400">{getLimitValue(emp, 'casual')} DAYS</td>
-                        <td className="py-3 px-5 text-center font-bold text-emerald-400">{getLimitValue(emp, 'annual')} DAYS</td>
-                        <td className="py-3 px-5 text-center font-bold text-slate-400">{getLimitValue(emp, 'unpaid')} DAYS</td>
-                        <td className="py-3 px-5 text-center font-bold text-amber-400">{getLimitValue(emp, 'other')} DAYS</td>
+                        {globalCategories.filter((c: any) => c.isActive).map((c: any) => {
+                          const isDisabled = (emp.disabledLeaves || []).includes(c.name);
+                          const limit = getLimitValue(emp, c.name);
+                          return (
+                            <td key={c.name} className="py-3 px-5 text-center font-bold">
+                              {isDisabled ? (
+                                <span className="text-slate-600 uppercase text-[9px] line-through select-none font-normal">DISABLED</span>
+                              ) : (
+                                <span className="text-[#ef4444]/80">{limit} DAYS</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className="py-3 px-5 text-right">
                           <button
                             onClick={() => openLimitsModal(emp)}
@@ -633,6 +761,93 @@ export default function LeavesPlannerPage() {
                 </table>
               </div>
             </motion.div>
+          )}
+
+          {tab === 'admin_policies' && (
+            <div className="space-y-4 font-mono">
+              <div className="flex justify-between items-center select-none">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">// CORE POLICY SCHEMAS</span>
+                <button
+                  onClick={openPolicyAddModal}
+                  className="px-3 py-1.5 bg-[#ef4444] hover:bg-[#dc2626] text-zinc-950 font-extrabold rounded text-[10px] cursor-pointer flex items-center gap-1.5 tracking-wider uppercase transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 font-bold" />
+                  <span>ADD CATEGORY</span>
+                </button>
+              </div>
+
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={springTransition}
+                className="card overflow-hidden p-0 relative"
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  borderColor: 'var(--border)'
+                }}
+              >
+                <div className="absolute top-1 left-2 text-[6px] opacity-15">DECK // LEAVE_POLICY_SCHEMAS</div>
+                <div className="overflow-x-auto pt-4">
+                  <table className="w-full text-left border-collapse text-[11px] select-none">
+                    <thead>
+                      <tr className="border-b bg-zinc-950/50 font-extrabold text-slate-400 uppercase tracking-widest" style={{ borderColor: 'var(--border)' }}>
+                        <th className="py-3.5 px-5">KEY IDENTIFIER</th>
+                        <th className="py-3.5 px-5">DISPLAY LABEL</th>
+                        <th className="py-3.5 px-5 text-center">DEFAULT DAYS</th>
+                        <th className="py-3.5 px-5 text-center">GLOBAL STATUS</th>
+                        <th className="py-3.5 px-5 text-right">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-slate-300" style={{ borderColor: 'var(--border)' }}>
+                      {globalCategories.map((c) => (
+                        <tr key={c._id} className="hover:bg-cyan-500/[0.02] transition-all">
+                          <td className="py-3 px-5 font-mono text-[#ef4444] font-bold">
+                            {c.name.toUpperCase()}
+                          </td>
+                          <td className="py-3 px-5 font-extrabold text-white">
+                            {c.label.toUpperCase()}
+                          </td>
+                          <td className="py-3 px-5 text-center font-bold text-slate-300">
+                            {c.defaultDays} DAYS
+                          </td>
+                          <td className="py-3 px-5 text-center">
+                            {c.isActive ? (
+                              <span className="px-2 py-0.5 text-[8px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-sm uppercase">ACTIVE</span>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[8px] font-extrabold bg-slate-500/10 text-slate-500 border border-slate-500/25 rounded-sm uppercase">INACTIVE</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-5 text-right space-x-2">
+                            <button
+                              onClick={() => openPolicyEditModal(c)}
+                              className="px-2.5 py-1 bg-white/5 border border-white/10 hover:bg-[#ef4444]/10 hover:text-[#ef4444] hover:border-[#ef4444]/25 text-slate-300 font-extrabold rounded text-[9px] cursor-pointer inline-flex items-center gap-1 tracking-widest uppercase transition-colors"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>EDIT</span>
+                            </button>
+                            <button
+                              onClick={() => handleCategoryDelete(c._id, c.name)}
+                              className="px-2.5 py-1 bg-white/5 border border-white/10 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/25 text-slate-400 font-extrabold rounded text-[9px] cursor-pointer inline-flex items-center gap-1 tracking-widest uppercase transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                              <span>DELETE</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {globalCategories.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="text-center py-16 text-slate-500 text-xs italic select-none">
+                            NO LEAVE POLICIES CONFIGURED IN CURRENT DATABASE.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            </div>
           )}
 
           {/* Historical logs table */}
@@ -748,11 +963,13 @@ export default function LeavesPlannerPage() {
                     onChange={handleInputChange}
                     className="select"
                   >
-                    <option value="sick">SICK LEAVE PROTOCOL</option>
-                    <option value="casual">CASUAL DISCONNECT</option>
-                    <option value="annual">ANNUAL DEPARTURE (VACATION)</option>
-                    <option value="unpaid">UNPAID SLEEP MODE</option>
-                    <option value="other">OTHER / EMERGENCY COOLDOWN</option>
+                    {(myAllowances.categories || [])
+                      .filter((c: any) => !(myAllowances.disabled || []).includes(c.name))
+                      .map((c: any) => (
+                        <option key={c.name} value={c.name}>
+                          {c.label.toUpperCase()}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -852,116 +1069,65 @@ export default function LeavesPlannerPage() {
               </div>
 
               <form onSubmit={handleLimitsSubmit} className="modal-body space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="form-group relative">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="form-label">Sick Leave Limit (Days)</label>
-                      <button
-                        type="button"
-                        onClick={() => handleResetLeave('sick')}
-                        className="text-[8px] text-[#ef4444] hover:underline uppercase font-bold cursor-pointer"
-                      >
-                        [Reset Usage]
-                      </button>
-                    </div>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      name="sick"
-                      value={customLimits.sick}
-                      onChange={handleLimitInputChange}
-                      className="input"
-                    />
-                  </div>
-                  <div className="form-group relative">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="form-label">Casual Leave Limit (Days)</label>
-                      <button
-                        type="button"
-                        onClick={() => handleResetLeave('casual')}
-                        className="text-[8px] text-[#ef4444] hover:underline uppercase font-bold cursor-pointer"
-                      >
-                        [Reset Usage]
-                      </button>
-                    </div>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      name="casual"
-                      value={customLimits.casual}
-                      onChange={handleLimitInputChange}
-                      className="input"
-                    />
-                  </div>
-                </div>
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                  {globalCategories
+                    .filter((c: any) => c.isActive)
+                    .map((c: any) => {
+                      const type = c.name;
+                      const isEnabled = enabledStates[type] ?? true;
+                      
+                      return (
+                        <div key={type} className="p-3.5 bg-zinc-950/40 rounded border border-white/5 space-y-3 relative" style={{ borderColor: 'var(--border)' }}>
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={(e) => setEnabledStates(prev => ({ ...prev, [type]: e.target.checked }))}
+                                className="w-4 h-4 rounded accent-[#ef4444] border-white/10 bg-zinc-950 text-[#ef4444] cursor-pointer"
+                              />
+                              <span className={`text-[10px] font-extrabold tracking-widest uppercase ${isEnabled ? 'text-white' : 'text-slate-500 line-through'}`}>
+                                {c.label}
+                              </span>
+                            </label>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="form-group relative">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="form-label">Annual Leave Limit (Days)</label>
-                      <button
-                        type="button"
-                        onClick={() => handleResetLeave('annual')}
-                        className="text-[8px] text-[#ef4444] hover:underline uppercase font-bold cursor-pointer"
-                      >
-                        [Reset Usage]
-                      </button>
-                    </div>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      name="annual"
-                      value={customLimits.annual}
-                      onChange={handleLimitInputChange}
-                      className="input"
-                    />
-                  </div>
-                  <div className="form-group relative">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="form-label">Unpaid Leave Limit (Days)</label>
-                      <button
-                        type="button"
-                        onClick={() => handleResetLeave('unpaid')}
-                        className="text-[8px] text-[#ef4444] hover:underline uppercase font-bold cursor-pointer"
-                      >
-                        [Reset Usage]
-                      </button>
-                    </div>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      name="unpaid"
-                      value={customLimits.unpaid}
-                      onChange={handleLimitInputChange}
-                      className="input"
-                    />
-                  </div>
-                </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleResetToDefaultLimit(type, c.defaultDays)}
+                                className="text-[8px] text-[#ef4444]/80 hover:text-[#ef4444] hover:underline uppercase font-bold cursor-pointer bg-transparent border-none"
+                                title="Reset limit count back to global policy default"
+                              >
+                                [Reset Limit]
+                              </button>
+                              <span className="text-[8px] text-slate-700 select-none">|</span>
+                              <button
+                                type="button"
+                                onClick={() => handleResetLeave(type)}
+                                className="text-[8px] text-rose-500/80 hover:text-rose-400 hover:underline uppercase font-bold cursor-pointer bg-transparent border-none"
+                                title="Reset all leave requests of this type to 0"
+                              >
+                                [Reset Usage]
+                              </button>
+                            </div>
+                          </div>
 
-                <div className="form-group relative">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="form-label">Other / Emergency Limit (Days)</label>
-                    <button
-                      type="button"
-                      onClick={() => handleResetLeave('other')}
-                      className="text-[8px] text-[#ef4444] hover:underline uppercase font-bold cursor-pointer"
-                    >
-                      [Reset Usage]
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    name="other"
-                    value={customLimits.other}
-                    onChange={handleLimitInputChange}
-                    className="input"
-                  />
+                          <div className="flex items-center gap-3 font-mono">
+                            <span className="text-[9px] text-slate-500 uppercase tracking-wider">Limit Days / Month:</span>
+                            <input
+                              type="number"
+                              required
+                              min={0}
+                              disabled={!isEnabled}
+                              name={type}
+                              value={customLimits[type] ?? c.defaultDays}
+                              onChange={(e) => handleLimitInputChange(type, Number(e.target.value))}
+                              className="input h-9 text-[11px] max-w-[120px] disabled:opacity-40 disabled:cursor-not-allowed"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
 
                 <div className="modal-footer pt-4 border-t flex items-center justify-end gap-3 select-none" style={{ borderColor: 'var(--border)' }}>
@@ -977,6 +1143,109 @@ export default function LeavesPlannerPage() {
                     className="btn btn-primary h-9 text-[10px] font-extrabold cursor-pointer"
                   >
                     SAVE_CONFIG
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Leave Policies / Category Editor Modal */}
+      <AnimatePresence>
+        {policyModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.97, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 10 }}
+              transition={springTransition}
+              className="modal-box w-full max-w-md"
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                borderColor: 'var(--border-strong)'
+              }}
+            >
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#ef4444] to-transparent"></div>
+              
+              <div className="modal-header select-none">
+                <h3 className="text-xs font-bold text-white flex items-center gap-2 tracking-widest uppercase">
+                  <Sliders className="w-4.5 h-4.5 text-[#ef4444]" />
+                  <span>{editingCategory ? `EDIT POLICY: ${editingCategory.name.toUpperCase()}` : 'NEW POLICY SCHEMA'}</span>
+                </h3>
+                <button
+                  onClick={() => setPolicyModalOpen(false)}
+                  className="p-1 rounded bg-white/5 border border-white/10 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePolicySubmit} className="modal-body space-y-4">
+                <div className="form-group font-mono">
+                  <label className="form-label mb-1">Key Identifier (Lowercase Code) *</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!!editingCategory}
+                    placeholder="e.g. sick, marriage, parental"
+                    value={policyFormData.name}
+                    onChange={(e) => setPolicyFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="input disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="form-group font-mono">
+                  <label className="form-label mb-1">Display Label Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Parental Leave Protocol"
+                    value={policyFormData.label}
+                    onChange={(e) => setPolicyFormData(prev => ({ ...prev, label: e.target.value }))}
+                    className="input"
+                  />
+                </div>
+
+                <div className="form-group font-mono">
+                  <label className="form-label mb-1">Default Allowance (Days / Month) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={policyFormData.defaultDays}
+                    onChange={(e) => setPolicyFormData(prev => ({ ...prev, defaultDays: Number(e.target.value) }))}
+                    className="input"
+                  />
+                </div>
+
+                <div className="form-group pt-2 font-mono">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={policyFormData.isActive}
+                      onChange={(e) => setPolicyFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-[#ef4444] border-white/10 bg-zinc-950 text-[#ef4444] cursor-pointer"
+                    />
+                    <span className="text-[10px] font-extrabold tracking-widest uppercase text-white">
+                      Globally Active & Enable Category
+                    </span>
+                  </label>
+                </div>
+
+                <div className="modal-footer pt-4 border-t flex items-center justify-end gap-3 select-none" style={{ borderColor: 'var(--border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPolicyModalOpen(false)}
+                    className="btn btn-secondary h-9 text-[10px] cursor-pointer"
+                  >
+                    ABORT
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary h-9 text-[10px] font-extrabold cursor-pointer"
+                  >
+                    {editingCategory ? 'SAVE_CHANGES' : 'CREATE_SCHEMA'}
                   </button>
                 </div>
               </form>

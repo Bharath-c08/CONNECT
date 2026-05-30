@@ -52,6 +52,17 @@ export default function TimesheetsPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Shift session editor states (Admin)
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    clockIn: '',
+    clockOut: '',
+    duration: 0,
+    shiftType: 'regular',
+    approvalStatus: 'approved'
+  });
+
   // Filters state (Admin)
   const [selectedStaff, setSelectedStaff] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -234,6 +245,58 @@ export default function TimesheetsPage() {
       fetchAdminData();
     } catch (err) {
       console.error('Error rejecting shift:', err);
+    }
+  };
+
+  // Format date safely for datetime-local input YYYY-MM-DDTHH:MM without timezone drift
+  const formatDateForInput = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const tzoffset = d.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(d.getTime() - tzoffset)).toISOString().slice(0, 16);
+    return localISOTime;
+  };
+
+  const openEditSessionModal = (session: any) => {
+    setSelectedSession(session);
+    setEditFormData({
+      clockIn: formatDateForInput(session.clockIn),
+      clockOut: formatDateForInput(session.clockOut),
+      duration: session.duration || 0,
+      shiftType: session.shiftType || 'regular',
+      approvalStatus: session.approvalStatus || (session.needsApproval ? 'pending' : 'approved')
+    });
+    setErrorMsg('');
+    setSuccessMsg('');
+    setEditModalOpen(true);
+  };
+
+  const handleEditSessionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const needsApproval = editFormData.approvalStatus === 'pending';
+      
+      await apiRequest(`/clock/admin/session/${selectedSession._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clockIn: new Date(editFormData.clockIn).toISOString(),
+          clockOut: editFormData.clockOut ? new Date(editFormData.clockOut).toISOString() : null,
+          duration: Number(editFormData.duration),
+          shiftType: editFormData.shiftType,
+          approvalStatus: editFormData.approvalStatus,
+          needsApproval
+        })
+      });
+
+      setSuccessMsg('SHIFT RECORD RE-WRITTEN SUCCESSFULLY.');
+      setEditModalOpen(false);
+      fetchAdminData();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error updating shift session.');
     }
   };
 
@@ -698,7 +761,7 @@ export default function TimesheetsPage() {
                             {session.status === 'completed' ? (
                               session.needsApproval ? (
                                 isAdmin ? (
-                                  <div className="flex items-center justify-center gap-1.5 select-none">
+                                  <div className="flex items-center justify-center gap-1.5 select-none font-mono">
                                     <button
                                       onClick={() => handleApproveShift(session._id)}
                                       className="py-1 px-2.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
@@ -708,17 +771,64 @@ export default function TimesheetsPage() {
                                     <button
                                       onClick={() => handleRejectShift(session._id)}
                                       className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
+                                      title="Disapprove this shift session"
                                     >
-                                      REJECT
+                                      DISAPPROVE
+                                    </button>
+                                    <button
+                                      onClick={() => openEditSessionModal(session)}
+                                      className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                    >
+                                      EDIT
                                     </button>
                                   </div>
                                 ) : (
                                   <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">PENDING APPROVAL</span>
                                 )
                               ) : session.approvalStatus === 'rejected' ? (
-                                <span className="px-2 py-0.5 text-[8px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded-sm badge uppercase">REJECTED</span>
+                                <div className="flex items-center justify-center gap-1.5 select-none font-mono">
+                                  <span className="px-2 py-0.5 text-[8px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded-sm badge uppercase">DISAPPROVED</span>
+                                  {isAdmin && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveShift(session._id)}
+                                        className="py-1 px-2.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
+                                        title="Re-approve and complete this shift"
+                                      >
+                                        APPROVE
+                                      </button>
+                                      <button
+                                        onClick={() => openEditSessionModal(session)}
+                                        className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                      >
+                                        EDIT
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               ) : (
-                                <span className="px-2 py-0.5 text-[8px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-sm badge uppercase">COMPLETED</span>
+                                <div className="flex items-center justify-center gap-1.5 select-none font-mono">
+                                  <span className="px-2 py-0.5 text-[8px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-sm badge uppercase">
+                                    {session.approvalStatus === 'approved' ? 'APPROVED' : 'COMPLETED'}
+                                  </span>
+                                  {isAdmin && (
+                                    <>
+                                      <button
+                                        onClick={() => handleRejectShift(session._id)}
+                                        className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
+                                        title="Disapprove and reject this completed shift"
+                                      >
+                                        DISAPPROVE
+                                      </button>
+                                      <button
+                                        onClick={() => openEditSessionModal(session)}
+                                        className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                      >
+                                        EDIT
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               )
                             ) : session.status === 'on_break' ? (
                               <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">ON BREAK</span>
@@ -865,6 +975,128 @@ export default function TimesheetsPage() {
           )}
         </>
       )}
+
+      {/* Admin Shift Session Edit Modal */}
+      <AnimatePresence>
+        {editModalOpen && selectedSession && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.97, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 10 }}
+              transition={springTransition}
+              className="modal-box w-full max-w-md font-mono"
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                borderColor: 'var(--border-strong)'
+              }}
+            >
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#ef4444] to-transparent"></div>
+              
+              <div className="modal-header select-none">
+                <h3 className="text-xs font-bold text-white flex items-center gap-2 tracking-widest uppercase">
+                  <Clock className="w-4.5 h-4.5 text-[#ef4444]" />
+                  <span>EDIT SHIFT RECORD: {selectedSession.userId?.fullName?.toUpperCase() || ''}</span>
+                </h3>
+                <button
+                  onClick={() => setEditModalOpen(false)}
+                  className="p-1 rounded bg-white/5 border border-white/10 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <span className="text-xs">✕</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSessionSubmit} className="modal-body space-y-4">
+                {errorMsg && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] uppercase font-bold tracking-wider rounded select-none">
+                    // FAULT: {errorMsg}
+                  </div>
+                )}
+                {successMsg && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] uppercase font-bold tracking-wider rounded select-none">
+                    // SUCCESS: {successMsg}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label mb-1">Clock In Timestamp *</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={editFormData.clockIn}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, clockIn: e.target.value }))}
+                    className="input"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label mb-1">Clock Out Timestamp</label>
+                  <input
+                    type="datetime-local"
+                    value={editFormData.clockOut}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, clockOut: e.target.value }))}
+                    className="input"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="form-group">
+                    <label className="form-label mb-1">Duration (Minutes) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={editFormData.duration}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, duration: Number(e.target.value) }))}
+                      className="input"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1">Shift Type *</label>
+                    <select
+                      value={editFormData.shiftType}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, shiftType: e.target.value }))}
+                      className="select"
+                    >
+                      <option value="regular">REGULAR</option>
+                      <option value="overtime">OVERTIME (OT)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label mb-1">Approval Link Status *</label>
+                  <select
+                    value={editFormData.approvalStatus}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, approvalStatus: e.target.value }))}
+                    className="select"
+                  >
+                    <option value="pending">PENDING APPROVAL</option>
+                    <option value="approved">APPROVED / COMPLETED</option>
+                    <option value="rejected">DISAPPROVED / DENIED</option>
+                  </select>
+                </div>
+
+                <div className="modal-footer pt-4 border-t flex items-center justify-end gap-3 select-none" style={{ borderColor: 'var(--border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditModalOpen(false)}
+                    className="btn btn-secondary h-9 text-[10px] cursor-pointer"
+                  >
+                    ABORT
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary h-9 text-[10px] font-extrabold cursor-pointer"
+                  >
+                    SAVE_CHANGES
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ── Export Modal ───────────────────────────────── */}
       <AnimatePresence>

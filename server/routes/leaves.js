@@ -2,12 +2,13 @@ import express from 'express';
 import LeaveRequest from '../models/LeaveRequest.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import LeaveCategory from '../models/LeaveCategory.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // @route   POST /api/leaves
-// @desc    Submit a leave request with limit checks and alerts
+// @desc    Submit a leave request with limit checks and alerts (scoped monthly)
 router.post('/', verifyToken, async (req, res) => {
   const { leaveType, startDate, endDate, reason } = req.body;
 
@@ -28,11 +29,29 @@ router.post('/', verifyToken, async (req, res) => {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
-    // Calculate already used/pending leaves of this type
+    // Load category dynamically
+    const category = await LeaveCategory.findOne({ name: leaveType });
+    if (!category || !category.isActive) {
+      return res.status(400).json({ message: 'This leave category is not currently active.' });
+    }
+
+    // Check if category is disabled for this user
+    if (user.disabledLeaves && user.disabledLeaves.includes(leaveType)) {
+      return res.status(400).json({ message: `This leave category (${category.label}) is not enabled for your account.` });
+    }
+
+    // Calculate start and end of requested month for monthly auto-reset check
+    const year = start.getFullYear();
+    const month = start.getMonth();
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+    // Calculate already used/pending leaves of this type in the target calendar month
     const existingRequests = await LeaveRequest.find({
       userId: req.user.userId,
       leaveType,
-      status: { $in: ['approved', 'pending'] }
+      status: { $in: ['approved', 'pending'] },
+      startDate: { $gte: startOfMonth, $lte: endOfMonth }
     });
 
     let usedDays = 0;
@@ -41,15 +60,14 @@ router.post('/', verifyToken, async (req, res) => {
       usedDays += days;
     });
 
-    const defaults = { sick: 10, casual: 10, annual: 15, unpaid: 365, other: 10 };
     const limit = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
-      ? (user.leaveLimits.get(leaveType) ?? defaults[leaveType])
-      : (user.leaveLimits?.[leaveType] ?? defaults[leaveType]);
+      ? (user.leaveLimits.get(leaveType) ?? category.defaultDays)
+      : (user.leaveLimits?.[leaveType] ?? category.defaultDays);
 
     if (usedDays + requestedDays > limit) {
       const remaining = Math.max(0, limit - usedDays);
       return res.status(400).json({
-        message: `INSUFFICIENT LEAVE BALANCE: You requested ${requestedDays} days of ${leaveType.toUpperCase()} leave, but you only have ${remaining} days remaining out of your ${limit}-day limit.`
+        message: `INSUFFICIENT LEAVE BALANCE: You requested ${requestedDays} days of ${leaveType.toUpperCase()} leave, but you only have ${remaining} days remaining out of your ${limit}-day limit for this month.`
       });
     }
 
@@ -187,42 +205,64 @@ router.put('/:id/status', verifyToken, isAdminOrSuperAdmin, async (req, res) => 
 });
 
 // @route   GET /api/leaves/my-limits
-// @desc    Get current user's leave limits and remaining balances
+// @desc    Get current user's leave limits and remaining balances (scoped monthly)
 router.get('/my-limits', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
-    // Count approved leaves per category
-    const requests = await LeaveRequest.find({ userId: req.user.userId, status: 'approved' });
+    // Load active leave categories dynamically
+    const categories = await LeaveCategory.find({ isActive: true }).sort({ createdAt: 1 });
+
+    // Calculate current month boundaries
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+    // Count approved leaves per category dynamically in the current month
+    const requests = await LeaveRequest.find({
+      userId: req.user.userId,
+      status: 'approved',
+      startDate: { $gte: startOfMonth, $lte: endOfMonth }
+    });
     
-    const usage = { sick: 0, casual: 0, annual: 0, unpaid: 0, other: 0 };
+    const usage = {};
+    categories.forEach(c => {
+      usage[c.name] = 0;
+    });
+
     requests.forEach(r => {
       const days = Math.ceil((new Date(r.endDate) - new Date(r.startDate)) / (1000 * 60 * 60 * 24)) + 1;
-      if (usage[r.leaveType] !== undefined) {
-        usage[r.leaveType] += days;
+      if (usage[r.leaveType] === undefined) {
+        usage[r.leaveType] = 0;
       }
+      usage[r.leaveType] += days;
     });
 
     const limits = {};
-    const defaults = { sick: 10, casual: 10, annual: 15, unpaid: 365, other: 10 };
-    
-    for (const key of ['sick', 'casual', 'annual', 'unpaid', 'other']) {
-      limits[key] = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
-        ? (user.leaveLimits.get(key) ?? defaults[key])
-        : (user.leaveLimits?.[key] ?? defaults[key]);
-    }
+    categories.forEach(c => {
+      limits[c.name] = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
+        ? (user.leaveLimits.get(c.name) ?? c.defaultDays)
+        : (user.leaveLimits?.[c.name] ?? c.defaultDays);
+    });
 
-    res.json({ limits, usage });
+    res.json({
+      limits,
+      usage,
+      disabled: user.disabledLeaves || [],
+      categories
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error retrieving leave balances.', error: err.message });
   }
 });
 
 // @route   PUT /api/leaves/limits/:userId
-// @desc    Update a specific user's leave limits (Admins only)
+// @desc    Update a specific user's leave limits and enabled leave types (Admins only)
 router.put('/limits/:userId', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
-  const { limits } = req.body;
+  const { limits, disabledLeaves } = req.body;
   if (!limits) {
     return res.status(400).json({ message: 'Limits object is required.' });
   }
@@ -231,10 +271,13 @@ router.put('/limits/:userId', verifyToken, isAdminOrSuperAdmin, async (req, res)
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
     for (const [key, val] of Object.entries(limits)) {
-      if (['sick', 'casual', 'annual', 'unpaid', 'other'].includes(key)) {
-        user.leaveLimits.set(key, Number(val));
-      }
+      user.leaveLimits.set(key, Number(val));
     }
+
+    if (disabledLeaves !== undefined && Array.isArray(disabledLeaves)) {
+      user.disabledLeaves = disabledLeaves;
+    }
+
     await user.save();
 
     const io = req.app.get('io');
@@ -270,7 +313,7 @@ router.put('/limits/:userId', verifyToken, isAdminOrSuperAdmin, async (req, res)
 // @desc    Reset a specific leave category of a user back to 0 (Admins only)
 router.post('/reset/:userId', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   const { leaveType } = req.body;
-  if (!leaveType || !['sick', 'casual', 'annual', 'unpaid', 'other'].includes(leaveType)) {
+  if (!leaveType) {
     return res.status(400).json({ message: 'Please provide a valid leave type to reset.' });
   }
 
@@ -305,6 +348,97 @@ router.post('/reset/:userId', verifyToken, isAdminOrSuperAdmin, async (req, res)
     res.json({ message: `Successfully reset "${leaveType.toUpperCase()}" leave requests and balance back to 0.`, deletedCount: result.deletedCount });
   } catch (err) {
     res.status(500).json({ message: 'Error resetting leave requests', error: err.message });
+  }
+});
+
+// @route   GET /api/leaves/categories
+// @desc    Get all leave categories (authenticated users)
+router.get('/categories', verifyToken, async (req, res) => {
+  try {
+    const categories = await LeaveCategory.find({}).sort({ createdAt: 1 });
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching leave categories', error: error.message });
+  }
+});
+
+// @route   POST /api/leaves/categories
+// @desc    Create a new leave category (Admins only)
+router.post('/categories', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  const { name, label, defaultDays } = req.body;
+  if (!name || !label || defaultDays === undefined) {
+    return res.status(400).json({ message: 'Please provide category name, label, and default days.' });
+  }
+
+  try {
+    const normalizedName = name.toLowerCase().trim();
+    const existing = await LeaveCategory.findOne({ name: normalizedName });
+    if (existing) {
+      return res.status(400).json({ message: 'A leave category with this identifier already exists.' });
+    }
+
+    const category = new LeaveCategory({
+      name: normalizedName,
+      label,
+      defaultDays: Number(defaultDays),
+      isActive: true
+    });
+
+    await category.save();
+    res.status(201).json(category);
+  } catch (error) {
+    res.status(500).json({ message: 'Error creating leave category', error: error.message });
+  }
+});
+
+// @route   PUT /api/leaves/categories/:id
+// @desc    Update a leave category (Admins only)
+router.put('/categories/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  const { label, defaultDays, isActive } = req.body;
+
+  try {
+    const category = await LeaveCategory.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Leave category not found.' });
+    }
+
+    if (label !== undefined) category.label = label;
+    if (defaultDays !== undefined) category.defaultDays = Number(defaultDays);
+    if (isActive !== undefined) category.isActive = isActive;
+
+    await category.save();
+    res.json(category);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating leave category', error: error.message });
+  }
+});
+
+// @route   DELETE /api/leaves/categories/:id
+// @desc    Delete a leave category (Admins only)
+router.delete('/categories/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  try {
+    const category = await LeaveCategory.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Leave category not found.' });
+    }
+
+    // Check if category is used in any leave requests
+    const usedCount = await LeaveRequest.countDocuments({ leaveType: category.name });
+    if (usedCount > 0) {
+      // Soft-delete if in use
+      category.isActive = false;
+      await category.save();
+      return res.json({
+        message: 'Leave category is in use by active records. It has been set to INACTIVE instead of full deletion.',
+        softDeleted: true,
+        category
+      });
+    }
+
+    await LeaveCategory.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Leave category deleted successfully.', softDeleted: false });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting leave category', error: error.message });
   }
 });
 
