@@ -92,6 +92,10 @@ export default function LeavesPlannerPage() {
       if (usr.role === 'admin' || usr.role === 'superadmin') {
         setTab('admin_pending');
         fetchAdminData();
+        // Also fetch personal allowances for leave request capability
+        apiRequest('/leaves/my-limits').then(allowances => {
+          setMyAllowances(allowances);
+        }).catch(err => console.error('Error fetching admin personal allowances:', err));
       } else {
         setTab('my');
         fetchPersonalData();
@@ -1099,15 +1103,6 @@ export default function LeavesPlannerPage() {
                                 title="Reset limit count back to global policy default"
                               >
                                 [Reset Limit]
-                              </button>
-                              <span className="text-[8px] text-slate-700 select-none">|</span>
-                              <button
-                                type="button"
-                                onClick={() => handleResetLeave(type)}
-                                className="text-[8px] text-rose-500/80 hover:text-rose-400 hover:underline uppercase font-bold cursor-pointer bg-transparent border-none"
-                                title="Reset all leave requests of this type to 0"
-                              >
-                                [Reset Usage]
                               </button>
                             </div>
                           </div>

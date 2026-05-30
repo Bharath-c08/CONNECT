@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
+import LeaveCategory from '../models/LeaveCategory.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -121,6 +122,13 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Dynamic leave policy limits synchronization
+    const categories = await LeaveCategory.find({});
+    const leaveLimits = new Map();
+    categories.forEach(c => {
+      leaveLimits.set(c.name, c.defaultDays);
+    });
+
     const newUser = new User({
       username,
       password: hashedPassword,
@@ -141,6 +149,7 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       regularShiftLimit: regularShiftLimit !== undefined ? Number(regularShiftLimit) : 8,
       otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
       assignedAdmin: assignedAdmin || undefined,
+      leaveLimits,
     });
 
     await newUser.save();
@@ -280,6 +289,17 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     return res.status(400).json({ message: 'Please provide a non-empty array of users under the "users" field.' });
   }
 
+  // Pre-fetch all leave categories to initialize limits
+  const leaveLimits = new Map();
+  try {
+    const categories = await LeaveCategory.find({});
+    categories.forEach(c => {
+      leaveLimits.set(c.name, c.defaultDays);
+    });
+  } catch (catErr) {
+    console.error('Error fetching leave categories for batch import:', catErr);
+  }
+
   const results = {
     successCount: 0,
     failCount: 0,
@@ -365,6 +385,7 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         regularShiftLimit: regularShiftLimit !== undefined ? Number(regularShiftLimit) : 8,
         otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
         assignedAdmin: assignedAdmin || undefined,
+        leaveLimits,
       });
 
       await newUser.save();
