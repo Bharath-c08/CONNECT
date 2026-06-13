@@ -286,6 +286,34 @@ router.delete('/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   }
 });
 
+// Helper to parse dates in DD-MM-YYYY, DD/MM/YYYY, or standard YYYY-MM-DD formats
+const parseDate = (dateStr) => {
+  if (!dateStr) return undefined;
+  const cleanStr = String(dateStr).trim();
+  if (!cleanStr) return undefined;
+
+  // Match DD-MM-YYYY or DD/MM/YYYY
+  const dmyRegex = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/;
+  const match = cleanStr.match(dmyRegex);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1; // 0-indexed month
+    const year = parseInt(match[3], 10);
+    const date = new Date(year, month, day);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  // Fallback to standard parsing
+  const fallbackDate = new Date(cleanStr);
+  if (!isNaN(fallbackDate.getTime())) {
+    return fallbackDate;
+  }
+
+  return undefined;
+};
+
 // @route   POST /api/users/import
 // @desc    Import multiple employees from an array (Only Super Admin and Admins)
 router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
@@ -378,13 +406,13 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         password: hashedPassword,
         role: role || 'user',
         fullName,
-        dob: dob ? new Date(dob) : undefined,
+        dob: dob ? parseDate(dob) : undefined,
         gender: gender || 'male',
         address,
         phone,
         email,
         jobTitle,
-        joiningDate: joiningDate ? new Date(joiningDate) : undefined,
+        joiningDate: joiningDate ? parseDate(joiningDate) : undefined,
         employmentType: employmentType || 'fulltime',
         employeeId,
         basicPay: Number(basicPay) || 0,
