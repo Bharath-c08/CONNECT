@@ -113,9 +113,9 @@ export default function UserDirectoryPage() {
 
   const handleDownloadSample = () => {
     const csvContent = 
-      "username,password,fullName,email,employeeId,jobTitle,employmentType,basicPay,phone,joiningDate,role\n" +
-      "john_doe,Password123,John Doe,john@example.com,EMP001,Junior Operator,fulltime,45000,9876543210,2026-05-01,user\n" +
-      "alice_smith,Password123,Alice Smith,alice@example.com,EMP002,Senior Auditor,fulltime,75000,9876543211,2026-05-15,user";
+      "username,password,fullName,role,email,phone,employeeId,jobTitle,employmentType,joiningDate,dob,gender,address,basicPay,overtimeEligible,overtimePayPerMinute,regularShiftLimit,otShiftLimit,shiftStartTime,shiftEndTime,assignedAdmin,panDetails,aadhaarDetails,bankAccountNumber,accountHolderFullName,ifscCode,branchName,bloodGroup,emergencyContactName,emergencyContactNumber\n" +
+      "john_doe,Password123,John Doe,user,john@example.com,9876543210,EMP001,Junior Operator,fulltime,2026-05-01,1995-08-15,male,Sector 62 Noida UP,45000,true,4.5,8,4,09:00,17:00,,ABCDE1234F,123456789012,987654321012,John Doe,SBIN0001234,Noida Branch,O+,Mary Doe,9876543219\n" +
+      "alice_smith,Password123,Alice Smith,user,alice@example.com,9876543211,EMP002,Senior Auditor,fulltime,2026-05-15,1992-12-05,female,Indiranagar Bengaluru,75000,false,0,8,4,09:00,17:00,,FGHIJ5678K,987654321098,123456789098,Alice Smith,HDFC0005678,Bengaluru Branch,A+,Bob Smith,9876543220";
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -163,10 +163,15 @@ export default function UserDirectoryPage() {
           const userObj: any = {};
           headers.forEach((header, index) => {
             let val: any = row[index];
-            if (header === 'basicpay' || header === 'overtimepayperminute') {
+            if (
+              header === 'basicpay' || 
+              header === 'overtimepayperminute' || 
+              header === 'regularshiftlimit' || 
+              header === 'otshiftlimit'
+            ) {
               val = Number(val) || 0;
             } else if (header === 'overtimeeligible') {
-              val = val === 'true' || val === '1';
+              val = val === 'true' || val === '1' || val === true;
             }
             const keyMap: any = {
               username: 'username',
@@ -179,7 +184,23 @@ export default function UserDirectoryPage() {
               basicpay: 'basicPay',
               phone: 'phone',
               joiningdate: 'joiningDate',
-              role: 'role'
+              role: 'role',
+              shiftstarttime: 'shiftStartTime',
+              shiftendtime: 'shiftEndTime',
+              overtimeeligible: 'overtimeEligible',
+              overtimepayperminute: 'overtimePayPerMinute',
+              regularshiftlimit: 'regularShiftLimit',
+              otshiftlimit: 'otShiftLimit',
+              assignedadmin: 'assignedAdmin',
+              pandetails: 'panDetails',
+              aadhaardetails: 'aadhaarDetails',
+              bankaccountnumber: 'bankAccountNumber',
+              accountholderfullname: 'accountHolderFullName',
+              ifsccode: 'ifscCode',
+              branchname: 'branchName',
+              bloodgroup: 'bloodGroup',
+              emergencycontactname: 'emergencyContactName',
+              emergencycontactnumber: 'emergencyContactNumber'
             };
             const mappedKey = keyMap[header] || header;
             userObj[mappedKey] = val;
@@ -262,6 +283,8 @@ export default function UserDirectoryPage() {
     overtimePayPerMinute: 0,
     regularShiftLimit: 8,
     otShiftLimit: 4,
+    shiftStartTime: '09:00',
+    shiftEndTime: '17:00',
     assignedAdmin: '',
     panDetails: '',
     aadhaarDetails: '',
@@ -323,6 +346,8 @@ export default function UserDirectoryPage() {
       overtimePayPerMinute: 0,
       regularShiftLimit: 8,
       otShiftLimit: 4,
+      shiftStartTime: '09:00',
+      shiftEndTime: '17:00',
       assignedAdmin: '',
       panDetails: '',
       aadhaarDetails: '',
@@ -360,6 +385,8 @@ export default function UserDirectoryPage() {
       overtimePayPerMinute: user.overtimePayPerMinute || 0,
       regularShiftLimit: user.regularShiftLimit !== undefined ? user.regularShiftLimit : 8,
       otShiftLimit: user.otShiftLimit !== undefined ? user.otShiftLimit : 4,
+      shiftStartTime: user.shiftStartTime || '09:00',
+      shiftEndTime: user.shiftEndTime || '17:00',
       assignedAdmin: user.assignedAdmin || '',
       panDetails: user.panDetails || '',
       aadhaarDetails: user.aadhaarDetails || '',
@@ -695,6 +722,14 @@ export default function UserDirectoryPage() {
                   <div className="flex items-center gap-2 select-none border-t pt-2 mt-2" style={{ borderColor: 'var(--border)' }}>
                     <span className="text-emerald-500 font-bold">₹</span>
                     <span>WAGE_BAND: <strong className="font-bold text-emerald-400">₹{user.basicPay}/mo</strong></span>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1 border-t pt-2 mt-2 select-none text-[10px]" style={{ borderColor: 'var(--border)' }}>
+                    <span className="text-[9px] uppercase font-bold text-slate-500">Shift Configuration</span>
+                    <div className="grid grid-cols-2 gap-1 text-slate-300">
+                      <span>Limit: <strong className="text-white font-bold">{user.regularShiftLimit ?? 8} hrs</strong></span>
+                      <span>Timing: <strong className="text-white font-bold">{user.shiftStartTime || '09:00'} - {user.shiftEndTime || '17:00'}</strong></span>
+                    </div>
                   </div>
 
                   {user.role === 'user' && (
@@ -1111,6 +1146,28 @@ export default function UserDirectoryPage() {
                         value={formData.otShiftLimit}
                         onChange={handleInputChange}
                         disabled={!formData.overtimeEligible}
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">Shift Start Time *</label>
+                      <input
+                        type="time"
+                        required
+                        name="shiftStartTime"
+                        value={formData.shiftStartTime}
+                        onChange={handleInputChange}
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1">Shift End Time *</label>
+                      <input
+                        type="time"
+                        required
+                        name="shiftEndTime"
+                        value={formData.shiftEndTime}
+                        onChange={handleInputChange}
                         className="input font-mono"
                       />
                     </div>

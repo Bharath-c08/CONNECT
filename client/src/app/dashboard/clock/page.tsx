@@ -36,6 +36,15 @@ const itemVariants = {
   show: { opacity: 1, y: 0, scale: 1, transition: springTransition }
 };
 
+const formatMinutesToHoursAndMins = (minutes: number) => {
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m`;
+  }
+  return `${mins}m`;
+};
+
 export default function TimesheetsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
@@ -245,6 +254,20 @@ export default function TimesheetsPage() {
       fetchAdminData();
     } catch (err) {
       console.error('Error rejecting shift:', err);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('CONFIRM DELETION OF THIS SHIFT RECORD? THIS ACTION IS PERMANENT.')) {
+      return;
+    }
+    try {
+      await apiRequest(`/clock/admin/session/${sessionId}`, {
+        method: 'DELETE'
+      });
+      fetchAdminData();
+    } catch (err) {
+      console.error('Error deleting shift session:', err);
     }
   };
 
@@ -501,13 +524,13 @@ export default function TimesheetsPage() {
           </motion.div>
 
           <motion.div variants={itemVariants} whileHover={{ y: -2 }} className="card flex items-center gap-4 py-4 px-5" style={{ borderColor: 'var(--border-strong)' }}>
-            <div className="absolute top-1 left-2 text-[6px] opacity-20">DECK // BREAK_MINS</div>
-            <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <span className="text-emerald-400 font-bold text-sm">Min</span>
+            <div className="absolute top-1 left-2 text-[6px] opacity-20">DECK // BREAK_TIME</div>
+            <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+              <span className="text-emerald-400 font-bold text-sm">Hrs</span>
             </div>
             <div>
               <span className="text-[9px] text-slate-500 block uppercase tracking-wider">Total Break Time</span>
-              <strong className="text-base font-extrabold text-white mt-0.5 block font-mono">{stats.breakMinutes} mins</strong>
+              <strong className="text-base font-extrabold text-white mt-0.5 block font-mono">{formatMinutesToHoursAndMins(stats.breakMinutes)}</strong>
             </div>
           </motion.div>
         </motion.div>
@@ -695,8 +718,8 @@ export default function TimesheetsPage() {
                       <th className="py-3.5 px-5">SYS_DATE</th>
                       <th className="py-3.5 px-5">SHIFT_IN</th>
                       <th className="py-3.5 px-5">SHIFT_OUT</th>
-                      <th className="py-3.5 px-5 text-center">CLOCK_IN_MINS</th>
-                      <th className="py-3.5 px-5 text-center">BREAK_MINS</th>
+                      <th className="py-3.5 px-5 text-center">CLOCK_IN_TIME</th>
+                      <th className="py-3.5 px-5 text-center">BREAK_TIME</th>
                       <th className="py-3.5 px-5 text-center">NET_WORKING</th>
                       <th className="py-3.5 px-5 text-center">LINK_STATUS</th>
                     </tr>
@@ -742,19 +765,19 @@ export default function TimesheetsPage() {
                                : '--:--'}
                           </td>
                           <td className="py-3 px-5 text-center font-mono">
-                            {totalSessionMins} mins
+                            {formatMinutesToHoursAndMins(totalSessionMins)}
                           </td>
                           <td className="py-3 px-5 text-center font-mono text-amber-400">
-                            {breakMinutes} mins ({session.breaks?.length || 0} breaks)
+                            {formatMinutesToHoursAndMins(breakMinutes)} ({session.breaks?.length || 0} breaks)
                             {session.breaks?.length > 0 && (
                               <div className="text-[9px] text-slate-500 font-normal font-sans mt-0.5">
-                                ({session.breaks.map((b: any) => `${b.breakType}: ${b.duration}m`).join(', ')})
+                                ({session.breaks.map((b: any) => `${b.breakType}: ${formatMinutesToHoursAndMins(b.duration)}`).join(', ')})
                               </div>
                             )}
                           </td>
                           <td className="py-3 px-5 text-center font-bold text-cyan-400 font-mono">
                             {session.status === 'completed'
-                               ? `${session.duration} mins`
+                               ? formatMinutesToHoursAndMins(session.duration)
                                : 'ACTIVE'}
                           </td>
                           <td className="py-3 px-5 text-center">
@@ -781,6 +804,12 @@ export default function TimesheetsPage() {
                                     >
                                       EDIT
                                     </button>
+                                    <button
+                                      onClick={() => handleDeleteSession(session._id)}
+                                      className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                    >
+                                      DELETE
+                                    </button>
                                   </div>
                                 ) : (
                                   <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">PENDING APPROVAL</span>
@@ -802,6 +831,12 @@ export default function TimesheetsPage() {
                                         className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
                                       >
                                         EDIT
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSession(session._id)}
+                                        className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                      >
+                                        DELETE
                                       </button>
                                     </>
                                   )}
@@ -825,6 +860,12 @@ export default function TimesheetsPage() {
                                         className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
                                       >
                                         EDIT
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSession(session._id)}
+                                        className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                      >
+                                        DELETE
                                       </button>
                                     </>
                                   )}

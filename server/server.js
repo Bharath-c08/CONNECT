@@ -124,12 +124,17 @@ mongoose
 
             for (const session of activeSessions) {
               const limitMins = session.sessionLimitMinutes !== undefined ? session.sessionLimitMinutes : (9 * 60);
-              const limitMs = limitMins * 60 * 1000;
-              const bufferMs = 5 * 60 * 1000; // 5-minute excess buffer
-              const elapsedMs = Date.now() - session.clockIn.getTime();
+              
+              // Get shift start and end times
+              const shiftStartTime = session.clockIn;
+              const shiftEndTime = new Date(shiftStartTime.getTime() + limitMins * 60 * 1000);
+              
+              // Auto clock out occurs only after 5 minutes of exceeding shift end time
+              // Break time does not delay or affect the auto clock off trigger
+              const autoClockOutTime = new Date(shiftEndTime.getTime() + 5 * 60 * 1000);
 
-              if (elapsedMs >= limitMs + bufferMs) {
-                const clockOutTime = new Date(session.clockIn.getTime() + limitMs + bufferMs);
+              if (Date.now() >= autoClockOutTime.getTime()) {
+                const clockOutTime = autoClockOutTime;
                 
                 // Auto-conclude breaks if still open
                 session.breaks.forEach((b) => {
@@ -138,17 +143,8 @@ mongoose
                   }
                 });
 
-                // Calculate break times and excess limit deductions
-                let totalBreaksMinutes = 0;
-                session.breaks.forEach((b) => {
-                  const ended = b.endedAt;
-                  const actualDurationMs = ended - b.startedAt;
-                  const actualDurationMins = Math.round(actualDurationMs / 60000);
-                  const excessMins = Math.max(0, actualDurationMins - b.duration);
-                  totalBreaksMinutes += (actualDurationMins + excessMins);
-                });
-
-                const netWorkingMins = Math.max(0, (limitMins + 5) - totalBreaksMinutes);
+                // Break time and break timings do not affect shift duration / net working time calculations
+                const netWorkingMins = limitMins + 5;
 
                 session.clockOut = clockOutTime;
                 session.duration = netWorkingMins;

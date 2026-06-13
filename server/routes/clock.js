@@ -173,25 +173,18 @@ router.post('/out', verifyToken, async (req, res) => {
       }
     }
 
-    // Calculate breaks and excess penalty
-    let totalBreaksMinutes = 0;
+    // Auto-conclude any other breaks if not ended
     activeSession.breaks.forEach((b) => {
-      const ended = b.endedAt || clockOutTime;
-      const actualDurationMs = ended - b.startedAt;
-      const actualDurationMins = Math.round(actualDurationMs / 60000);
-      
-      // Calculate excess if actual break duration exceeds allowed limit
-      const excessMins = Math.max(0, actualDurationMins - b.duration);
-      
-      // Deduct the break time itself + excess penalty
-      totalBreaksMinutes += (actualDurationMins + excessMins);
+      if (!b.endedAt) {
+        b.endedAt = clockOutTime;
+      }
     });
 
     const totalShiftMs = clockOutTime - activeSession.clockIn;
     const totalShiftMins = Math.max(1, Math.round(totalShiftMs / 60000));
     
-    // Subtract break time + excess penalty, ensuring duration doesn't go below 0
-    const netWorkingMins = Math.max(0, totalShiftMins - totalBreaksMinutes);
+    // Break time and break timings do not affect shift duration / net working time calculations
+    const netWorkingMins = totalShiftMins;
 
     activeSession.clockOut = clockOutTime;
     activeSession.duration = netWorkingMins;
@@ -526,6 +519,19 @@ router.put('/admin/session/:id', verifyToken, isAdminOrSuperAdmin, async (req, r
     res.json({ message: 'Shift session updated successfully.', session });
   } catch (err) {
     res.status(500).json({ message: 'Error editing shift session', error: err.message });
+  }
+});
+
+// @route   DELETE /api/clock/admin/session/:id
+// @desc    Delete a shift session (Admins only)
+router.delete('/admin/session/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  try {
+    const session = await Session.findByIdAndDelete(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Shift session not found.' });
+
+    res.json({ message: 'Shift session deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting shift session', error: err.message });
   }
 });
 

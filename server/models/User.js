@@ -28,6 +28,8 @@ const UserSchema = new mongoose.Schema(
     overtimePayPerMinute: { type: Number, default: 0 },
     regularShiftLimit: { type: Number, default: 8 },
     otShiftLimit: { type: Number, default: 4 },
+    shiftStartTime: { type: String, default: '09:00' },
+    shiftEndTime: { type: String, default: '17:00' },
     assignedAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     panDetails: { type: String },
     aadhaarDetails: { type: String },

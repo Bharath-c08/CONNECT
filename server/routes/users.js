@@ -98,6 +98,8 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     regularShiftLimit,
     otShiftLimit,
     assignedAdmin,
+    shiftStartTime,
+    shiftEndTime,
   } = req.body;
 
   // Basic validation
@@ -148,6 +150,8 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       overtimePayPerMinute: Number(overtimePayPerMinute) || 0,
       regularShiftLimit: regularShiftLimit !== undefined ? Number(regularShiftLimit) : 8,
       otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
+      shiftStartTime: shiftStartTime || '09:00',
+      shiftEndTime: shiftEndTime || '17:00',
       assignedAdmin: assignedAdmin || undefined,
       leaveLimits,
     });
@@ -204,6 +208,8 @@ router.put('/:id', verifyToken, async (req, res) => {
       delete updates.employeeId;
       delete updates.regularShiftLimit;
       delete updates.otShiftLimit;
+      delete updates.shiftStartTime;
+      delete updates.shiftEndTime;
     }
 
     // Sanitize and safely cast types to prevent Mongoose schema cast faults
@@ -327,6 +333,8 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       regularShiftLimit,
       otShiftLimit,
       assignedAdmin,
+      shiftStartTime,
+      shiftEndTime,
     } = userObj;
 
     // Required fields validation
@@ -384,6 +392,8 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         overtimePayPerMinute: Number(overtimePayPerMinute) || 0,
         regularShiftLimit: regularShiftLimit !== undefined ? Number(regularShiftLimit) : 8,
         otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
+        shiftStartTime: shiftStartTime || '09:00',
+        shiftEndTime: shiftEndTime || '17:00',
         assignedAdmin: assignedAdmin || undefined,
         leaveLimits,
       });

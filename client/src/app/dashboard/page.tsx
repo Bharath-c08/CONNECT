@@ -136,47 +136,83 @@ export default function DashboardPage() {
     };
   }, [clockedIn, activeSession]);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const userProfile = await apiRequest('/auth/me');
-      setUser(userProfile);
+      const [
+        userProfileRes,
+        clockDataRes,
+        taskDataRes,
+        historyDataRes,
+        leaveDataRes,
+        breakTypesDataRes
+      ] = await Promise.allSettled([
+        apiRequest('/auth/me'),
+        apiRequest('/clock/status'),
+        apiRequest('/tasks/my'),
+        apiRequest('/clock/history'),
+        apiRequest('/leaves/my'),
+        apiRequest('/clock/breaks/types')
+      ]);
 
-      const clockData = await apiRequest('/clock/status');
-      setClockedIn(clockData.clockedIn);
-      setActiveSession(clockData.session);
-      setClockStatus({
-        regularShiftLimit: clockData.regularShiftLimit ?? 8,
-        otShiftLimit: clockData.otShiftLimit ?? 4,
-        overtimeEligible: clockData.overtimeEligible ?? false,
-        regularMinutesToday: clockData.regularMinutesToday ?? 0,
-        otMinutesToday: clockData.otMinutesToday ?? 0
-      });
-      if ((clockData.regularMinutesToday ?? 0) >= (clockData.regularShiftLimit ?? 8) * 60 && clockData.overtimeEligible) {
-        setSelectedShiftType('overtime');
+      if (userProfileRes.status === 'fulfilled') {
+        setUser(userProfileRes.value);
       } else {
-        setSelectedShiftType('regular');
+        console.error('Error fetching user profile:', userProfileRes.reason);
       }
 
-      const taskData = await apiRequest('/tasks/my');
-      setTasks(taskData.slice(0, 4));
+      if (clockDataRes.status === 'fulfilled') {
+        const clockData = clockDataRes.value;
+        setClockedIn(clockData.clockedIn);
+        setActiveSession(clockData.session);
+        setClockStatus({
+          regularShiftLimit: clockData.regularShiftLimit ?? 8,
+          otShiftLimit: clockData.otShiftLimit ?? 4,
+          overtimeEligible: clockData.overtimeEligible ?? false,
+          regularMinutesToday: clockData.regularMinutesToday ?? 0,
+          otMinutesToday: clockData.otMinutesToday ?? 0
+        });
+        if ((clockData.regularMinutesToday ?? 0) >= (clockData.regularShiftLimit ?? 8) * 60 && clockData.overtimeEligible) {
+          setSelectedShiftType('overtime');
+        } else {
+          setSelectedShiftType('regular');
+        }
+      } else {
+        console.error('Error fetching clock status:', clockDataRes.reason);
+        setError('CRITICAL: Failed to retrieve shift telemetry status.');
+      }
 
-      const historyData = await apiRequest('/clock/history');
-      setHistory(historyData.slice(0, 10));
+      if (taskDataRes.status === 'fulfilled') {
+        setTasks(taskDataRes.value.slice(0, 4));
+      } else {
+        console.error('Error fetching tasks:', taskDataRes.reason);
+      }
 
-      const leaveData = await apiRequest('/leaves/my');
-      setLeaves(leaveData.slice(0, 3));
+      if (historyDataRes.status === 'fulfilled') {
+        setHistory(historyDataRes.value.slice(0, 10));
+      } else {
+        console.error('Error fetching history:', historyDataRes.reason);
+      }
 
-      // Fetch break types
-      const breakTypesData = await apiRequest('/clock/breaks/types');
-      setBreakTypes(breakTypesData);
-      if (breakTypesData.length > 0) {
-        setSelectedBreakType(breakTypesData[0]);
+      if (leaveDataRes.status === 'fulfilled') {
+        setLeaves(leaveDataRes.value.slice(0, 3));
+      } else {
+        console.error('Error fetching leaves:', leaveDataRes.reason);
+      }
+
+      if (breakTypesDataRes.status === 'fulfilled') {
+        const breakTypesData = breakTypesDataRes.value;
+        setBreakTypes(breakTypesData);
+        if (breakTypesData.length > 0) {
+          setSelectedBreakType(breakTypesData[0]);
+        }
+      } else {
+        console.error('Error fetching break types:', breakTypesDataRes.reason);
       }
     } catch (err: any) {
       setError(err.message || 'ERROR CONNECTING TO SYS_CORE. PLEASE LINK UPLINK INTERFACE.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -196,7 +232,7 @@ export default function DashboardPage() {
           colors: ['#ef4444', '#d946ef', '#ffffff', '#10b981']
         });
 
-        fetchDashboardData();
+        fetchDashboardData(true);
       } else {
         // Clock In
         let location = null;
@@ -278,7 +314,7 @@ export default function DashboardPage() {
         colors: ['#ef4444', '#10b981']
       });
 
-      fetchDashboardData();
+      fetchDashboardData(true);
     } catch (err: any) {
       setError(err.message || 'MISSION UPDATE FAILED.');
     }
