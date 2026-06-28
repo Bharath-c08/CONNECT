@@ -13,6 +13,7 @@ import Notification from './models/Notification.js';
 import Task from './models/Task.js';
 import Session from './models/Session.js';
 import LeaveCategory from './models/LeaveCategory.js';
+import BreakType from './models/BreakType.js';
 import { calculateNetWorkingMinutes } from './utils/shift.js';
 
 // Import Routes
@@ -123,6 +124,12 @@ mongoose
               status: { $in: ['active', 'on_break'] }
             }).populate('userId');
 
+            const breakTypes = await BreakType.find({});
+            const breakLimitMap = {};
+            breakTypes.forEach((bt) => {
+              breakLimitMap[bt.name.toUpperCase()] = bt.duration;
+            });
+
             for (const session of activeSessions) {
               if (!session.userId) continue;
               const user = session.userId;
@@ -154,7 +161,7 @@ mongoose
                   session.clockIn,
                   clockOutTime,
                   session.breaks,
-                  user.breakLimitMinutes
+                  breakLimitMap
                 );
 
                 session.clockOut = clockOutTime;

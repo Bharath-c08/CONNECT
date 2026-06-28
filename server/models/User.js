@@ -30,7 +30,6 @@ const UserSchema = new mongoose.Schema(
     otShiftLimit: { type: Number, default: 4 },
     shiftStartTime: { type: String, default: '09:00' },
     shiftEndTime: { type: String, default: '17:00' },
-    breakLimitMinutes: { type: Number, default: 60 },
     assignedAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     panDetails: { type: String },
     aadhaarDetails: { type: String },

@@ -193,14 +193,17 @@ router.post('/out', verifyToken, async (req, res) => {
       }
     });
 
-    const user = await User.findById(req.user.userId);
-    const breakLimit = user ? user.breakLimitMinutes : 60;
+    const breakTypes = await BreakType.find({});
+    const breakLimitMap = {};
+    breakTypes.forEach((bt) => {
+      breakLimitMap[bt.name.toUpperCase()] = bt.duration;
+    });
 
     const netWorkingMins = calculateNetWorkingMinutes(
       activeSession.clockIn,
       clockOutTime,
       activeSession.breaks,
-      breakLimit
+      breakLimitMap
     );
 
     activeSession.clockOut = clockOutTime;
