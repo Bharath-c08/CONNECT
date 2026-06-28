@@ -22,6 +22,7 @@ import {
   Binary,
   Radio,
   FileText,
+  Edit,
   X
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
@@ -234,6 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Payslip Generator', index: '06', href: '/dashboard/payslip', icon: FileText, role: 'staff' },
     { name: 'Encrypted Feeds', index: '07', href: '/dashboard/chat', icon: MessageSquare, role: 'all' },
     { name: 'Operational Calendar', index: '08', href: '/dashboard/calendar', icon: Calendar, role: 'all' },
+    { name: 'Operational Notes', index: '09', href: '/dashboard/notes', icon: Edit, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link
