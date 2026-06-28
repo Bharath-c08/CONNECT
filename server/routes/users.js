@@ -100,6 +100,7 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     assignedAdmin,
     shiftStartTime,
     shiftEndTime,
+    breakLimitMinutes,
   } = req.body;
 
   // Basic validation
@@ -152,6 +153,7 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
       shiftStartTime: shiftStartTime || '09:00',
       shiftEndTime: shiftEndTime || '17:00',
+      breakLimitMinutes: breakLimitMinutes !== undefined ? Number(breakLimitMinutes) : 60,
       assignedAdmin: assignedAdmin || undefined,
       leaveLimits,
     });
@@ -210,6 +212,7 @@ router.put('/:id', verifyToken, async (req, res) => {
       delete updates.otShiftLimit;
       delete updates.shiftStartTime;
       delete updates.shiftEndTime;
+      delete updates.breakLimitMinutes;
     }
 
     // Sanitize and safely cast types to prevent Mongoose schema cast faults
@@ -233,6 +236,9 @@ router.put('/:id', verifyToken, async (req, res) => {
     }
     if (updates.otShiftLimit !== undefined) {
       updates.otShiftLimit = Number(updates.otShiftLimit) || 4;
+    }
+    if (updates.breakLimitMinutes !== undefined) {
+      updates.breakLimitMinutes = Number(updates.breakLimitMinutes) || 60;
     }
 
     // Only superadmin can modify the role parameter of any user
@@ -363,6 +369,7 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       assignedAdmin,
       shiftStartTime,
       shiftEndTime,
+      breakLimitMinutes,
     } = userObj;
 
     // Required fields validation
@@ -422,6 +429,7 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         otShiftLimit: otShiftLimit !== undefined ? Number(otShiftLimit) : 4,
         shiftStartTime: shiftStartTime || '09:00',
         shiftEndTime: shiftEndTime || '17:00',
+        breakLimitMinutes: breakLimitMinutes !== undefined ? Number(breakLimitMinutes) : 60,
         assignedAdmin: assignedAdmin || undefined,
         leaveLimits,
       });

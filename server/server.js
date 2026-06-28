@@ -13,6 +13,7 @@ import Notification from './models/Notification.js';
 import Task from './models/Task.js';
 import Session from './models/Session.js';
 import LeaveCategory from './models/LeaveCategory.js';
+import { calculateNetWorkingMinutes } from './utils/shift.js';
 
 // Import Routes
 import authRoutes from './routes/auth.js';
@@ -120,14 +121,19 @@ mongoose
           try {
             const activeSessions = await Session.find({
               status: { $in: ['active', 'on_break'] }
-            });
+            }).populate('userId');
 
             for (const session of activeSessions) {
-              const limitMins = session.sessionLimitMinutes !== undefined ? session.sessionLimitMinutes : (9 * 60);
+              if (!session.userId) continue;
+              const user = session.userId;
+
+              // Parse shift start and end times to compute shift limit
+              const [startHrs, startMins] = (user.shiftStartTime || '09:00').split(':').map(Number);
+              const [endHrs, endMins] = (user.shiftEndTime || '17:00').split(':').map(Number);
               
-              // Get shift start and end times
-              const shiftStartTime = session.clockIn;
-              const shiftEndTime = new Date(shiftStartTime.getTime() + limitMins * 60 * 1000);
+              // Get shift end time on the day of clockIn
+              const shiftEndTime = new Date(session.clockIn);
+              shiftEndTime.setHours(endHrs, endMins, 0, 0);
               
               // Auto clock out occurs only after 5 minutes of exceeding shift end time
               // Break time does not delay or affect the auto clock off trigger
@@ -143,8 +149,13 @@ mongoose
                   }
                 });
 
-                // Break time and break timings do not affect shift duration / net working time calculations
-                const netWorkingMins = limitMins + 5;
+                // Calculate net working minutes utilizing the utility function
+                const netWorkingMins = calculateNetWorkingMinutes(
+                  session.clockIn,
+                  clockOutTime,
+                  session.breaks,
+                  user.breakLimitMinutes
+                );
 
                 session.clockOut = clockOutTime;
                 session.duration = netWorkingMins;
@@ -158,10 +169,14 @@ mongoose
 
                 await session.save();
 
-                // Create notification for operator
+                // Calculate shift limit in hours for notification message
+                let limitMins = (endHrs * 60 + endMins) - (startHrs * 60 + startMins);
+                if (limitMins < 0) limitMins += 24 * 60;
                 const limitHours = (limitMins / 60).toFixed(1);
+
+                // Create notification for operator
                 const notif = new Notification({
-                  recipientId: session.userId,
+                  recipientId: session.userId._id,
                   type: 'system',
                   title: 'Auto Shift Termination Alert',
                   message: `Your shift has been automatically terminated as it exceeded the ${limitHours}-hour limit. Admin approval is pending.`,
@@ -172,8 +187,8 @@ mongoose
                 // Emit real-time WebSockets
                 const ioInstance = app.get('io');
                 if (ioInstance) {
-                  ioInstance.to(session.userId.toString()).emit('new-notification', notif);
-                  ioInstance.emit('clock-status-changed', { userId: session.userId, session });
+                  ioInstance.to(session.userId._id.toString()).emit('new-notification', notif);
+                  ioInstance.emit('clock-status-changed', { userId: session.userId._id, session });
                 }
               }
             }

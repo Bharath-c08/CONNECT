@@ -3,6 +3,7 @@ import Session from '../models/Session.js';
 import User from '../models/User.js';
 import BreakType from '../models/BreakType.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
+import { calculateNetWorkingMinutes } from '../utils/shift.js';
 
 const router = express.Router();
 
@@ -78,6 +79,18 @@ router.post('/in', verifyToken, async (req, res) => {
     const user = await User.findById(req.user.userId);
     if (!user) {
       return res.status(404).json({ message: 'User profile not found.' });
+    }
+
+    // Check shift start time restriction
+    const now = new Date();
+    const [startHrs, startMins] = (user.shiftStartTime || '09:00').split(':').map(Number);
+    const shiftStartToday = new Date(now);
+    shiftStartToday.setHours(startHrs, startMins, 0, 0);
+
+    if (now < shiftStartToday) {
+      return res.status(400).json({
+        message: `SHIFT_NOT_STARTED: You cannot start your shift before your scheduled shift start time of ${user.shiftStartTime || '09:00'}.`
+      });
     }
 
     // Compute completed shift metrics for today in server local time
@@ -180,11 +193,15 @@ router.post('/out', verifyToken, async (req, res) => {
       }
     });
 
-    const totalShiftMs = clockOutTime - activeSession.clockIn;
-    const totalShiftMins = Math.max(1, Math.round(totalShiftMs / 60000));
-    
-    // Break time and break timings do not affect shift duration / net working time calculations
-    const netWorkingMins = totalShiftMins;
+    const user = await User.findById(req.user.userId);
+    const breakLimit = user ? user.breakLimitMinutes : 60;
+
+    const netWorkingMins = calculateNetWorkingMinutes(
+      activeSession.clockIn,
+      clockOutTime,
+      activeSession.breaks,
+      breakLimit
+    );
 
     activeSession.clockOut = clockOutTime;
     activeSession.duration = netWorkingMins;
