@@ -33,7 +33,8 @@ const SessionSchema = new mongoose.Schema(
     }],
     needsApproval: { type: Boolean, default: false },
     approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'] },
-    autoClockedOut: { type: Boolean, default: false }
+    autoClockedOut: { type: Boolean, default: false },
+    timezone: { type: String, default: 'Asia/Kolkata' }
   },
   { timestamps: true }
 );

@@ -15,6 +15,7 @@ import Session from './models/Session.js';
 import LeaveCategory from './models/LeaveCategory.js';
 import BreakType from './models/BreakType.js';
 import { calculateNetWorkingMinutes } from './utils/shift.js';
+import { getShiftTimeInUTC } from './utils/timezone.js';
 
 // Import Routes
 import authRoutes from './routes/auth.js';
@@ -134,13 +135,14 @@ mongoose
               if (!session.userId) continue;
               const user = session.userId;
 
+              const timezone = session.timezone || 'Asia/Kolkata';
+
               // Parse shift start and end times to compute shift limit
               const [startHrs, startMins] = (user.shiftStartTime || '09:00').split(':').map(Number);
               const [endHrs, endMins] = (user.shiftEndTime || '17:00').split(':').map(Number);
               
-              // Get shift end time on the day of clockIn
-              const shiftEndTime = new Date(session.clockIn);
-              shiftEndTime.setHours(endHrs, endMins, 0, 0);
+              // Get shift end time on the day of clockIn in the session's timezone
+              const shiftEndTime = getShiftTimeInUTC(session.clockIn, user.shiftEndTime || '17:00', timezone);
               
               // Auto clock out occurs only after 5 minutes of exceeding shift end time
               // Break time does not delay or affect the auto clock off trigger

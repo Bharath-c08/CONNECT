@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import BreakType from '../models/BreakType.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 import { calculateNetWorkingMinutes } from '../utils/shift.js';
+import { getShiftTimeInUTC, getStartOfDayInUTC, getEndOfDayInUTC } from '../utils/timezone.js';
 
 const router = express.Router();
 
@@ -21,11 +22,11 @@ router.get('/status', verifyToken, async (req, res) => {
       status: { $in: ['active', 'on_break'] },
     });
 
-    // Compute completed shift metrics for today in server local time
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    // Compute completed shift metrics for today in client local time
+    const clientTimezone = req.query.timezone || 'Asia/Kolkata';
+    const now = new Date();
+    const todayStart = getStartOfDayInUTC(now, clientTimezone);
+    const todayEnd = getEndOfDayInUTC(now, clientTimezone);
 
     const sessionsToday = await Session.find({
       userId: req.user.userId,
@@ -62,7 +63,8 @@ router.get('/status', verifyToken, async (req, res) => {
 // @route   POST /api/clock/in
 // @desc    Start a clock-in session (Restricted to one active session at a time)
 router.post('/in', verifyToken, async (req, res) => {
-  const { location, shiftType } = req.body;
+  const { location, shiftType, timezone } = req.body;
+  const clientTimezone = timezone || 'Asia/Kolkata';
   const selectedType = shiftType || 'regular';
 
   try {
@@ -83,9 +85,7 @@ router.post('/in', verifyToken, async (req, res) => {
 
     // Check shift start time restriction
     const now = new Date();
-    const [startHrs, startMins] = (user.shiftStartTime || '09:00').split(':').map(Number);
-    const shiftStartToday = new Date(now);
-    shiftStartToday.setHours(startHrs, startMins, 0, 0);
+    const shiftStartToday = getShiftTimeInUTC(now, user.shiftStartTime || '09:00', clientTimezone);
 
     if (now < shiftStartToday) {
       return res.status(400).json({
@@ -93,11 +93,9 @@ router.post('/in', verifyToken, async (req, res) => {
       });
     }
 
-    // Compute completed shift metrics for today in server local time
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    // Compute completed shift metrics for today in client local time
+    const todayStart = getStartOfDayInUTC(now, clientTimezone);
+    const todayEnd = getEndOfDayInUTC(now, clientTimezone);
 
     const sessionsToday = await Session.find({
       userId: req.user.userId,
@@ -148,6 +146,7 @@ router.post('/in', verifyToken, async (req, res) => {
       shiftType: selectedType,
       sessionLimitMinutes,
       status: 'active',
+      timezone: clientTimezone,
     });
 
     await newSession.save();
@@ -341,7 +340,7 @@ router.get('/admin/payslip-data', verifyToken, isAdminOrSuperAdmin, async (req, 
 // @route   POST /api/clock/break/start
 // @desc    Start a break during active shift
 router.post('/break/start', verifyToken, async (req, res) => {
-  const { breakType, duration } = req.body;
+  const { breakType, duration, timezone } = req.body;
   if (!breakType || !duration) {
     return res.status(400).json({ message: 'Break type and duration are required.' });
   }
@@ -357,10 +356,10 @@ router.post('/break/start', verifyToken, async (req, res) => {
     }
 
     // Calculate how many minutes of this break type have already been consumed today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const clientTimezone = timezone || 'Asia/Kolkata';
+    const now = new Date();
+    const todayStart = getStartOfDayInUTC(now, clientTimezone);
+    const todayEnd = getEndOfDayInUTC(now, clientTimezone);
 
     const sessionsToday = await Session.find({
       userId: req.user.userId,

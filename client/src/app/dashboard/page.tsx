@@ -148,7 +148,7 @@ export default function DashboardPage() {
         breakTypesDataRes
       ] = await Promise.allSettled([
         apiRequest('/auth/me'),
-        apiRequest('/clock/status'),
+        apiRequest(`/clock/status?timezone=${Intl.DateTimeFormat().resolvedOptions().timeZone}`),
         apiRequest('/tasks/my'),
         apiRequest('/clock/history'),
         apiRequest('/leaves/my'),
@@ -262,7 +262,11 @@ export default function DashboardPage() {
   const triggerClockIn = async (location: any) => {
     const data = await apiRequest('/clock/in', {
       method: 'POST',
-      body: JSON.stringify({ location, shiftType: selectedShiftType }),
+      body: JSON.stringify({ 
+        location, 
+        shiftType: selectedShiftType,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }),
     });
     setClockedIn(true);
     setActiveSession(data.session);
@@ -278,7 +282,8 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           breakType: selectedBreakType.name,
-          duration: selectedBreakType.duration
+          duration: selectedBreakType.duration,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       });
       setActiveSession(data.session);
