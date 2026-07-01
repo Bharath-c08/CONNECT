@@ -17,6 +17,7 @@ import BreakType from './models/BreakType.js';
 import { calculateNetWorkingMinutes } from './utils/shift.js';
 import { getShiftTimeInUTC } from './utils/timezone.js';
 import { runRecalculation } from './recalculate_durations.js';
+import { syncJobRoleTeams } from './utils/teams.js';
 
 // Import Routes
 import authRoutes from './routes/auth.js';
@@ -89,6 +90,9 @@ mongoose
     
     // Recalculate net working hours in the background
     runRecalculation().catch(err => console.error('Recalculation on startup failed:', err));
+    
+    // Auto-sync team channels and user assignments on startup
+    syncJobRoleTeams().catch(err => console.error('Initial team synchronization failed:', err));
     
     // Start listening on port
     server.listen(PORT, () => {
