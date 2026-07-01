@@ -56,6 +56,78 @@ export default function ChatHubPage() {
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Tag autocomplete & member panel states
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [tagQuery, setTagQuery] = useState('');
+  const [tagIndex, setTagIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setNewMessage(val);
+
+    if (!selectedTeam) {
+      setShowTagSuggestions(false);
+      return;
+    }
+
+    const cursorPosition = e.target.selectionStart || 0;
+    const textBeforeCursor = val.substring(0, cursorPosition);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (atIndex !== -1 && !textBeforeCursor.substring(atIndex).includes(' ')) {
+      const query = textBeforeCursor.substring(atIndex + 1).toLowerCase();
+      setTagQuery(query);
+      setShowTagSuggestions(true);
+      setTagIndex(0);
+    } else {
+      setShowTagSuggestions(false);
+    }
+  };
+
+  const selectTag = (member: any) => {
+    const cursorPosition = inputRef.current?.selectionStart || 0;
+    const textBeforeCursor = newMessage.substring(0, cursorPosition);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    
+    const textAfterCursor = newMessage.substring(cursorPosition);
+    const newText = newMessage.substring(0, atIndex) + `@${member.fullName} ` + textAfterCursor;
+    
+    setNewMessage(newText);
+    setShowTagSuggestions(false);
+    
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const newPos = atIndex + member.fullName.length + 2; // +2 for @ and trailing space
+        inputRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 50);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showTagSuggestions && selectedTeam) {
+      const suggestions = selectedTeam.members?.filter((m: any) => m.fullName.toLowerCase().includes(tagQuery)) || [];
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setTagIndex(prev => (prev + 1) % (suggestions.length || 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setTagIndex(prev => (prev - 1 + (suggestions.length || 1)) % (suggestions.length || 1));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (suggestions[tagIndex]) {
+          selectTag(suggestions[tagIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowTagSuggestions(false);
+      }
+    }
+  };
+
   // Active chat references to avoid socket listener teardown loops
   const activeChatIdRef = useRef<string | null>(null);
   const activeChatTypeRef = useRef<'team' | 'user' | null>(null);
@@ -154,6 +226,8 @@ export default function ChatHubPage() {
   const handleSelectTeam = async (team: any) => {
     setSelectedUser(null);
     setSelectedTeam(team);
+    setShowMembersPanel(false);
+    setShowTagSuggestions(false);
     activeChatIdRef.current = team._id;
     activeChatTypeRef.current = 'team';
     setMessages([]);
@@ -169,6 +243,8 @@ export default function ChatHubPage() {
   const handleSelectUser = async (user: any) => {
     setSelectedTeam(null);
     setSelectedUser(user);
+    setShowMembersPanel(false);
+    setShowTagSuggestions(false);
     activeChatIdRef.current = user._id;
     activeChatTypeRef.current = 'user';
     setMessages([]);
@@ -586,125 +662,224 @@ export default function ChatHubPage() {
                       </motion.button>
                     </div>
                   )}
+
+                  {/* Members directory button for team channels */}
+                  {selectedTeam && (
+                    <div className="flex items-center gap-3 pt-2">
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }} 
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowMembersPanel(!showMembersPanel)} 
+                        className="h-10 px-3 flex items-center justify-center gap-1.5 rounded-lg border hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors shrink-0 cursor-pointer text-slate-400 text-[10px] font-bold" 
+                        style={{ borderColor: 'var(--border)' }} 
+                        title="Channel Members"
+                      >
+                        <Users className="w-4 h-4" />
+                        <span>MEMBERS ({selectedTeam.members?.length || 0})</span>
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Chat timeline message rows */}
-                <div className="flex-grow overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar" style={{ backgroundColor: 'var(--bg)' }}>
-                  <AnimatePresence initial={false}>
-                    {messages.map((msg, index) => {
-                      const isMe = msg.senderId._id === (currentUser?.id || currentUser?._id);
-                      const senderName = msg.senderId?.fullName || 'Operator';
-                      const timeString = new Date(msg.createdAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      });
+                {/* Chat content container with conditional sidebar panel */}
+                <div className="flex-grow flex h-full overflow-hidden relative min-h-0">
+                  {/* Chat timeline message rows + input */}
+                  <div className="flex-1 flex flex-col h-full min-w-0">
+                    <div className="flex-grow overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar" style={{ backgroundColor: 'var(--bg)' }}>
+                      <AnimatePresence initial={false}>
+                        {messages.map((msg, index) => {
+                          const isMe = msg.senderId._id === (currentUser?.id || currentUser?._id);
+                          const senderName = msg.senderId?.fullName || 'Operator';
+                          const timeString = new Date(msg.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          });
 
-                      const currentDate = new Date(msg.createdAt).toLocaleDateString([], { dateStyle: 'medium' });
-                      const prevMsg = index > 0 ? messages[index - 1] : null;
-                      const prevDate = prevMsg ? new Date(prevMsg.createdAt).toLocaleDateString([], { dateStyle: 'medium' }) : null;
-                      const showDateHeader = currentDate !== prevDate;
+                          const currentDate = new Date(msg.createdAt).toLocaleDateString([], { dateStyle: 'medium' });
+                          const prevMsg = index > 0 ? messages[index - 1] : null;
+                          const prevDate = prevMsg ? new Date(prevMsg.createdAt).toLocaleDateString([], { dateStyle: 'medium' }) : null;
+                          const showDateHeader = currentDate !== prevDate;
 
-                      return (
-                        <React.Fragment key={msg._id}>
-                          {showDateHeader && (
-                            <div className="flex justify-center my-4 select-none">
-                              <span className="px-2.5 py-1 rounded text-[8px] font-bold uppercase border tracking-widest bg-zinc-950"
-                                style={{
-                                  borderColor: 'var(--border)',
-                                  color: 'var(--text-secondary)'
-                                }}
+                          return (
+                            <React.Fragment key={msg._id}>
+                              {showDateHeader && (
+                                <div className="flex justify-center my-4 select-none">
+                                  <span className="px-2.5 py-1 rounded text-[8px] font-bold uppercase border tracking-widest bg-zinc-950"
+                                    style={{
+                                      borderColor: 'var(--border)',
+                                      color: 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    {currentDate}
+                                  </span>
+                                </div>
+                              )}
+
+                              <motion.div 
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+                                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-4`}
                               >
-                                {currentDate}
-                              </span>
-                            </div>
-                          )}
+                                {/* Sender name badge for team discussion */}
+                                {selectedTeam && !isMe && (
+                                  <div className="text-[10px] font-extrabold mb-1 text-cyan-400 tracking-wider select-none">
+                                    [{senderName.toUpperCase()}]
+                                  </div>
+                                )}
 
-                          <motion.div 
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ type: 'spring', stiffness: 220, damping: 20 }}
-                            className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-4`}
-                          >
-                            {/* Sender name badge for team discussion */}
-                            {selectedTeam && !isMe && (
-                              <div className="text-[10px] font-extrabold mb-1 text-cyan-400 tracking-wider select-none">
-                                [{senderName.toUpperCase()}]
-                              </div>
-                            )}
-
-                            <div
-                              className="px-8 py-5.5 text-sm leading-relaxed border rounded-[4px] font-mono break-words min-w-[220px] max-w-[92%] md:max-w-[82%] shadow-md"
-                              style={{
-                                backgroundColor: isMe ? 'rgba(6, 182, 212, 0.14)' : 'rgba(28, 28, 40, 0.95)',
-                                borderColor: isMe ? 'rgba(6, 182, 212, 0.45)' : 'rgba(255, 255, 255, 0.05)',
-                                color: isMe ? 'var(--text-primary)' : '#f8fafc'
-                              }}
-                            >
-                              {msg.content}
-                            </div>
-
-                            {/* Timestamp and Checkmark below bubble */}
-                            <div className="flex items-center gap-1.5 mt-1.5 px-2 text-[10px] text-slate-400 select-none">
-                              <span>{timeString}</span>
-                              {isMe && (
-                                <CheckCheck className="w-3.5 h-3.5 text-brand shrink-0" />
-                              )}
-                              {(isMe || isAdmin) && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteMessage(msg._id)}
-                                  className="ml-2 text-rose-500 hover:text-rose-400 hover:scale-110 transition-all cursor-pointer flex items-center justify-center p-0.5 rounded border border-transparent hover:border-rose-500/20 bg-transparent"
-                                  title="DELETE_MESSAGE"
+                                <div
+                                  className="px-8 py-5.5 text-sm leading-relaxed border rounded-[4px] font-mono break-words min-w-[220px] max-w-[92%] md:max-w-[82%] shadow-md"
+                                  style={{
+                                    backgroundColor: isMe ? 'rgba(6, 182, 212, 0.14)' : 'rgba(28, 28, 40, 0.95)',
+                                    borderColor: isMe ? 'rgba(6, 182, 212, 0.45)' : 'rgba(255, 255, 255, 0.05)',
+                                    color: isMe ? 'var(--text-primary)' : '#f8fafc'
+                                  }}
                                 >
-                                  <Trash className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          </motion.div>
-                        </React.Fragment>
-                      );
-                    })}
-                  </AnimatePresence>
-                  <div ref={messagesEndRef} />
-                </div>
+                                  {msg.content}
+                                </div>
 
-                {/* Chat Text Input Composer Form - Simple and beautifully integrated */}
-                <div className="p-4 shrink-0 select-none" style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-subtle)' }}>
-                  <form onSubmit={handleSendMessage} className="flex items-center gap-3 max-w-4xl mx-auto">
-                    
-                    <div className="flex-1 rounded-xl flex items-center border"
-                       style={{
-                         backgroundColor: 'var(--bg-input)',
-                         borderColor: 'var(--border)'
-                       }}
-                    >
-                      <button type="button" className="pl-3 pr-1.5 text-slate-500 hover:text-slate-300 transition-colors shrink-0 cursor-pointer" title="Emojis">
-                        <Smile className="w-4 h-4" />
-                      </button>
-                      <input
-                        type="text"
-                        placeholder="COMPILE MESSAGE CAPSULE..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        className="flex-1 h-9 py-1.5 px-2 bg-transparent outline-none text-[11px]"
-                        style={{ color: 'var(--text-primary)' }}
-                      />
+                                {/* Timestamp and Checkmark below bubble */}
+                                <div className="flex items-center gap-1.5 mt-1.5 px-2 text-[10px] text-slate-400 select-none">
+                                  <span>{timeString}</span>
+                                  {isMe && (
+                                    <CheckCheck className="w-3.5 h-3.5 text-brand shrink-0" />
+                                  )}
+                                  {(isMe || isAdmin) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteMessage(msg._id)}
+                                      className="ml-2 text-rose-500 hover:text-rose-400 hover:scale-110 transition-all cursor-pointer flex items-center justify-center p-0.5 rounded border border-transparent hover:border-rose-500/20 bg-transparent"
+                                      title="DELETE_MESSAGE"
+                                    >
+                                      <Trash className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </motion.div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </AnimatePresence>
+                      <div ref={messagesEndRef} />
                     </div>
 
-                    <motion.button
-                      type="submit"
-                      disabled={!newMessage.trim()}
-                      whileHover={newMessage.trim() ? { scale: 1.02 } : {}}
-                      whileTap={newMessage.trim() ? { scale: 0.98 } : {}}
-                      className="btn btn-primary h-9 px-4 rounded flex items-center justify-center gap-1 text-[10px] font-bold transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-30 border-0"
-                      style={{
-                        boxShadow: 'var(--shadow-btn)'
-                      }}
-                    >
-                      <span>TRANSMIT</span>
-                      <Send className="w-3 h-3" />
-                    </motion.button>
-                  </form>
+                    {/* Chat Text Input Composer Form - Simple and beautifully integrated */}
+                    <div className="p-4 shrink-0 select-none relative" style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-subtle)' }}>
+                      
+                      {/* Tag Suggestions Dropdown */}
+                      {showTagSuggestions && selectedTeam && (
+                        <div 
+                          className="absolute left-4 bottom-16 w-56 max-h-40 overflow-y-auto border rounded bg-zinc-950/95 shadow-2xl p-1.5 z-30 space-y-0.5" 
+                          style={{ borderColor: 'var(--border-strong)' }}
+                        >
+                          <div className="text-[7px] text-slate-500 font-bold uppercase tracking-wider px-2 py-1 select-none border-b border-white/5 mb-1">
+                            SELECT_OPERATOR_TAG
+                          </div>
+                          {selectedTeam.members
+                            ?.filter((m: any) => m.fullName.toLowerCase().includes(tagQuery))
+                            .map((m: any, idx: number) => (
+                              <button
+                                key={m._id}
+                                type="button"
+                                onClick={() => selectTag(m)}
+                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors cursor-pointer text-[10px] ${
+                                  idx === tagIndex ? 'bg-[#ef4444]/20 text-[#ef4444] font-bold' : 'text-slate-350 hover:bg-white/5'
+                                }`}
+                              >
+                                <span className="w-5 h-5 rounded border border-white/10 flex items-center justify-center bg-zinc-900 text-[8px] font-bold text-cyan-400 shrink-0">
+                                  {getInitials(m.fullName)}
+                                </span>
+                                <span className="truncate flex-1">{m.fullName.toUpperCase()}</span>
+                              </button>
+                            ))}
+                          {selectedTeam.members?.filter((m: any) => m.fullName.toLowerCase().includes(tagQuery)).length === 0 && (
+                            <p className="text-[8px] text-slate-500 italic text-center py-2">NO MATCHING OPERATORS</p>
+                          )}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleSendMessage} className="flex items-center gap-3 max-w-4xl mx-auto">
+                        
+                        <div className="flex-1 rounded-xl flex items-center border"
+                           style={{
+                             backgroundColor: 'var(--bg-input)',
+                             borderColor: 'var(--border)'
+                           }}
+                        >
+                          <button type="button" className="pl-3 pr-1.5 text-slate-500 hover:text-slate-300 transition-colors shrink-0 cursor-pointer" title="Emojis">
+                            <Smile className="w-4 h-4" />
+                          </button>
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="COMPILE MESSAGE CAPSULE..."
+                            value={newMessage}
+                            onChange={handleInputChange}
+                            onKeyDown={handleInputKeyDown}
+                            className="flex-1 h-9 py-1.5 px-2 bg-transparent outline-none text-[11px]"
+                            style={{ color: 'var(--text-primary)' }}
+                          />
+                        </div>
+
+                        <motion.button
+                          type="submit"
+                          disabled={!newMessage.trim()}
+                          whileHover={newMessage.trim() ? { scale: 1.02 } : {}}
+                          whileTap={newMessage.trim() ? { scale: 0.98 } : {}}
+                          className="btn btn-primary h-9 px-4 rounded flex items-center justify-center gap-1 text-[10px] font-bold transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-30 border-0"
+                          style={{
+                            boxShadow: 'var(--shadow-btn)'
+                          }}
+                        >
+                          <span>TRANSMIT</span>
+                          <Send className="w-3 h-3" />
+                        </motion.button>
+                      </form>
+                    </div>
+                  </div>
+
+                  {/* Members Panel */}
+                  <AnimatePresence>
+                    {showMembersPanel && selectedTeam && (
+                      <motion.div
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                        className="w-64 border-l flex flex-col shrink-0 font-mono z-15 h-full overflow-hidden"
+                        style={{
+                          backgroundColor: 'var(--bg-card)',
+                          borderColor: 'var(--border)'
+                        }}
+                      >
+                        <div className="p-4 border-b flex items-center justify-between select-none shrink-0" style={{ borderColor: 'var(--border)' }}>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#ef4444]">CHANNEL_MEMBERS</span>
+                          <button
+                            onClick={() => setShowMembersPanel(false)}
+                            className="btn-icon h-6 w-6 rounded cursor-pointer border border-transparent hover:border-white/10"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto p-3 space-y-2.5 custom-scrollbar bg-zinc-950/10">
+                          {selectedTeam.members?.map((m: any) => (
+                            <div key={m._id} className="flex items-center gap-3 p-2 rounded border bg-zinc-950/20" style={{ borderColor: 'var(--border)' }}>
+                              <div className="w-7 h-7 rounded border flex items-center justify-center font-bold text-[9px] bg-zinc-900 border-white/10 text-cyan-400">
+                                {getInitials(m.fullName)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-[10px] text-white truncate uppercase">{m.fullName}</div>
+                                <div className="text-[8px] text-slate-500 uppercase mt-0.5 tracking-wider truncate">
+                                  {m.employeeId} &bull; {m.jobTitle || 'MEMBER'}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             ) : (
