@@ -192,17 +192,13 @@ router.post('/out', verifyToken, async (req, res) => {
       }
     });
 
-    const breakTypes = await BreakType.find({});
-    const breakLimitMap = {};
-    breakTypes.forEach((bt) => {
-      breakLimitMap[bt.name.toUpperCase()] = bt.duration;
-    });
+    const user = await User.findById(activeSession.userId);
+    const userBreakLimit = user && user.breakLimitMinutes !== undefined ? user.breakLimitMinutes : 0;
 
     const netWorkingMins = calculateNetWorkingMinutes(
       activeSession.clockIn,
       clockOutTime,
-      activeSession.breaks,
-      breakLimitMap
+      userBreakLimit
     );
 
     activeSession.clockOut = clockOutTime;
@@ -236,7 +232,9 @@ router.post('/out', verifyToken, async (req, res) => {
 // @desc    Get the clock-in history of the logged in user
 router.get('/history', verifyToken, async (req, res) => {
   try {
-    const sessions = await Session.find({ userId: req.user.userId }).sort({ clockIn: -1 });
+    const sessions = await Session.find({ userId: req.user.userId })
+      .populate('userId', 'fullName employeeId jobTitle role breakLimitMinutes regularShiftLimit shiftStartTime shiftEndTime')
+      .sort({ clockIn: -1 });
     res.json(sessions);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching shift history', error: error.message });
@@ -259,7 +257,7 @@ router.get('/admin/roster', verifyToken, isAdminOrSuperAdmin, async (req, res) =
 
   try {
     const sessions = await Session.find(query)
-      .populate('userId', 'fullName employeeId jobTitle role')
+      .populate('userId', 'fullName employeeId jobTitle role breakLimitMinutes regularShiftLimit shiftStartTime shiftEndTime')
       .sort({ clockIn: -1 });
     res.json(sessions);
   } catch (error) {
@@ -272,7 +270,7 @@ router.get('/admin/roster', verifyToken, isAdminOrSuperAdmin, async (req, res) =
 router.get('/admin/live', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   try {
     const liveSessions = await Session.find({ status: { $in: ['active', 'on_break'] } })
-      .populate('userId', 'fullName employeeId jobTitle role email phone')
+      .populate('userId', 'fullName employeeId jobTitle role email phone breakLimitMinutes regularShiftLimit shiftStartTime shiftEndTime')
       .sort({ clockIn: -1 });
     res.json(liveSessions);
   } catch (error) {

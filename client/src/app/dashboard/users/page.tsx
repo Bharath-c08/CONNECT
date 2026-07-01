@@ -113,9 +113,9 @@ export default function UserDirectoryPage() {
 
   const handleDownloadSample = () => {
     const csvContent = 
-      "username,password,fullName,role,email,phone,employeeId,jobTitle,employmentType,joiningDate,dob,gender,address,basicPay,overtimeEligible,overtimePayPerMinute,regularShiftLimit,otShiftLimit,shiftStartTime,shiftEndTime,assignedAdmin,panDetails,aadhaarDetails,bankAccountNumber,accountHolderFullName,ifscCode,branchName,bloodGroup,emergencyContactName,emergencyContactNumber\n" +
-      "john_doe,Password123,John Doe,user,john@example.com,9876543210,EMP001,Junior Operator,fulltime,2026-05-01,1995-08-15,male,Sector 62 Noida UP,45000,true,4.5,8,4,09:00,17:00,,ABCDE1234F,123456789012,987654321012,John Doe,SBIN0001234,Noida Branch,O+,Mary Doe,9876543219\n" +
-      "alice_smith,Password123,Alice Smith,user,alice@example.com,9876543211,EMP002,Senior Auditor,fulltime,2026-05-15,1992-12-05,female,Indiranagar Bengaluru,75000,false,0,8,4,09:00,17:00,,FGHIJ5678K,987654321098,123456789098,Alice Smith,HDFC0005678,Bengaluru Branch,A+,Bob Smith,9876543220";
+      "username,password,fullName,role,email,phone,employeeId,jobTitle,employmentType,joiningDate,dob,gender,address,basicPay,overtimeEligible,overtimePayPerMinute,regularShiftLimit,otShiftLimit,shiftStartTime,shiftEndTime,breakLimitMinutes,assignedAdmin,panDetails,aadhaarDetails,bankAccountNumber,accountHolderFullName,ifscCode,branchName,bloodGroup,emergencyContactName,emergencyContactNumber\n" +
+      "john_doe,Password123,John Doe,user,john@example.com,9876543210,EMP001,Junior Operator,fulltime,2026-05-01,1995-08-15,male,Sector 62 Noida UP,45000,true,4.5,8,4,09:00,17:00,50,,ABCDE1234F,123456789012,987654321012,John Doe,SBIN0001234,Noida Branch,O+,Mary Doe,9876543219\n" +
+      "alice_smith,Password123,Alice Smith,user,alice@example.com,9876543211,EMP002,Senior Auditor,fulltime,2026-05-15,1992-12-05,female,Indiranagar Bengaluru,75000,false,0,8,4,09:00,17:00,50,,FGHIJ5678K,987654321098,123456789098,Alice Smith,HDFC0005678,Bengaluru Branch,A+,Bob Smith,9876543220";
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -167,7 +167,8 @@ export default function UserDirectoryPage() {
               header === 'basicpay' || 
               header === 'overtimepayperminute' || 
               header === 'regularshiftlimit' || 
-              header === 'otshiftlimit'
+              header === 'otshiftlimit' ||
+              header === 'breaklimitminutes'
             ) {
               val = Number(val) || 0;
             } else if (header === 'overtimeeligible') {
@@ -191,6 +192,7 @@ export default function UserDirectoryPage() {
               overtimepayperminute: 'overtimePayPerMinute',
               regularshiftlimit: 'regularShiftLimit',
               otshiftlimit: 'otShiftLimit',
+              breaklimitminutes: 'breakLimitMinutes',
               assignedadmin: 'assignedAdmin',
               pandetails: 'panDetails',
               aadhaardetails: 'aadhaarDetails',
@@ -285,6 +287,7 @@ export default function UserDirectoryPage() {
     otShiftLimit: 4,
     shiftStartTime: '09:00',
     shiftEndTime: '17:00',
+    breakLimitMinutes: 0,
     assignedAdmin: '',
     panDetails: '',
     aadhaarDetails: '',
@@ -348,6 +351,7 @@ export default function UserDirectoryPage() {
       otShiftLimit: 4,
       shiftStartTime: '09:00',
       shiftEndTime: '17:00',
+      breakLimitMinutes: 0,
       assignedAdmin: '',
       panDetails: '',
       aadhaarDetails: '',
@@ -387,6 +391,7 @@ export default function UserDirectoryPage() {
       otShiftLimit: user.otShiftLimit !== undefined ? user.otShiftLimit : 4,
       shiftStartTime: user.shiftStartTime || '09:00',
       shiftEndTime: user.shiftEndTime || '17:00',
+      breakLimitMinutes: user.breakLimitMinutes !== undefined ? user.breakLimitMinutes : 0,
       assignedAdmin: user.assignedAdmin || '',
       panDetails: user.panDetails || '',
       aadhaarDetails: user.aadhaarDetails || '',
@@ -728,7 +733,8 @@ export default function UserDirectoryPage() {
                     <span className="text-[9px] uppercase font-bold text-slate-500">Shift Configuration</span>
                     <div className="grid grid-cols-2 gap-1 text-slate-300">
                       <span>Limit: <strong className="text-white font-bold">{user.regularShiftLimit ?? 8} hrs</strong></span>
-                      <span>Timing: <strong className="text-white font-bold">{user.shiftStartTime || '09:00'} - {user.shiftEndTime || '17:00'}</strong></span>
+                      <span>Break: <strong className="text-white font-bold">{user.breakLimitMinutes ?? 0} mins</strong></span>
+                      <span className="col-span-2">Timing: <strong className="text-white font-bold">{user.shiftStartTime || '09:00'} - {user.shiftEndTime || '17:00'}</strong></span>
                     </div>
                   </div>
 
@@ -1167,6 +1173,19 @@ export default function UserDirectoryPage() {
                         required
                         name="shiftEndTime"
                         value={formData.shiftEndTime}
+                        onChange={handleInputChange}
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="form-group sm:col-span-2">
+                      <label className="form-label mb-1">Break Limit (Minutes) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        max="1440"
+                        name="breakLimitMinutes"
+                        value={formData.breakLimitMinutes}
                         onChange={handleInputChange}
                         className="input font-mono"
                       />

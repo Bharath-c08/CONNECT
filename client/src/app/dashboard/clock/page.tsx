@@ -334,17 +334,9 @@ export default function TimesheetsPage() {
       if (session.status === 'completed') {
         completedShifts++;
         totalMinutes += session.duration || 0;
+        totalBreakMinutes += session.userId?.breakLimitMinutes ?? 0;
         if (session.breaks && session.breaks.length > 0) {
           totalBreaks += session.breaks.length;
-          session.breaks.forEach((b: any) => {
-            if (b.endedAt) {
-              const start = new Date(b.startedAt).getTime();
-              const end = new Date(b.endedAt).getTime();
-              totalBreakMinutes += Math.round((end - start) / 60000);
-            } else {
-              totalBreakMinutes += b.duration || 0;
-            }
-          });
         }
       }
     });
@@ -382,13 +374,7 @@ export default function TimesheetsPage() {
         ? Math.round((new Date(s.clockOut).getTime() - new Date(s.clockIn).getTime()) / 60000)
         : Math.round((Date.now() - new Date(s.clockIn).getTime()) / 60000);
       
-      let breakMinutes = 0;
-      if (s.breaks && s.breaks.length > 0) {
-        s.breaks.forEach((b: any) => {
-          const ended = b.endedAt ? new Date(b.endedAt).getTime() : Date.now();
-          breakMinutes += Math.round((ended - new Date(b.startedAt).getTime()) / 60000);
-        });
-      }
+      const breakLimitMins = s.userId?.breakLimitMinutes ?? 0;
 
       return {
         employee: s.userId?.fullName || '',
@@ -397,7 +383,7 @@ export default function TimesheetsPage() {
         clockIn: new Date(s.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         clockOut: s.clockOut ? new Date(s.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
         clockedInMins: totalSessionMins,
-        breakMins: breakMinutes,
+        breakMins: breakLimitMins,
         netWorkingMins: s.status === 'completed' ? s.duration : 'ACTIVE',
         status: s.status || '',
       };
@@ -768,7 +754,7 @@ export default function TimesheetsPage() {
                             {formatMinutesToHoursAndMins(totalSessionMins)}
                           </td>
                           <td className="py-3 px-5 text-center font-mono text-amber-400">
-                            {formatMinutesToHoursAndMins(breakMinutes)} ({session.breaks?.length || 0} breaks)
+                            {formatMinutesToHoursAndMins(session.userId?.breakLimitMinutes ?? 0)} ({session.breaks?.length || 0} breaks)
                             {session.breaks?.length > 0 && (
                               <div className="text-[9px] text-slate-500 font-normal font-sans mt-0.5">
                                 ({session.breaks.map((b: any) => `${b.breakType}: ${formatMinutesToHoursAndMins(b.duration)}`).join(', ')})

@@ -10,36 +10,23 @@
  * @param {Object} breakLimitMap Map of uppercase break type names to limits in minutes
  * @returns {number} Net working minutes
  */
-export function calculateNetWorkingMinutes(clockIn, clockOut, breaks, breakLimitMap = {}) {
-  // 1. Calculate actual durations grouped by breakType (case-insensitive)
-  const actualBreakDurations = {};
-  if (breaks && Array.isArray(breaks)) {
-    breaks.forEach((b) => {
-      const typeName = b.breakType.toUpperCase();
-      const ended = b.endedAt || clockOut;
-      const durMs = new Date(ended) - new Date(b.startedAt);
-      const mins = Math.round(durMs / 60000);
-      actualBreakDurations[typeName] = (actualBreakDurations[typeName] || 0) + mins;
-    });
-  }
-
-  // 2. Calculate total elapsed minutes (base net working time)
+export function calculateNetWorkingMinutes(clockIn, clockOut, breakLimitOrBreaks = 0, breakLimitMap = {}) {
+  // 1. Calculate total elapsed minutes (base net working time)
   const totalShiftMs = new Date(clockOut) - new Date(clockIn);
-  const totalShiftMins = Math.max(1, Math.round(totalShiftMs / 60000));
+  const totalShiftMins = Math.max(0, Math.round(totalShiftMs / 60000));
 
-  let netWorkingMins = totalShiftMins;
+  let breakLimitMinutes = 0;
 
-  // 3. Subtract excess break durations for each break type
-  let totalExtraMinutes = 0;
-  for (const [typeName, actualMins] of Object.entries(actualBreakDurations)) {
-    // Look up the limit for this break type. Fallback to a default of 60 if not configured.
-    const limit = breakLimitMap[typeName] !== undefined ? breakLimitMap[typeName] : 60;
-    if (actualMins > limit) {
-      totalExtraMinutes += (actualMins - limit);
+  if (typeof breakLimitOrBreaks === 'number') {
+    breakLimitMinutes = breakLimitOrBreaks;
+  } else if (typeof breakLimitOrBreaks === 'object' && breakLimitOrBreaks !== null) {
+    if (breakLimitOrBreaks.breakLimitMinutes !== undefined) {
+      breakLimitMinutes = Number(breakLimitOrBreaks.breakLimitMinutes) || 0;
+    } else if (Array.isArray(breakLimitOrBreaks)) {
+      // Compatibility fallback
+      breakLimitMinutes = 0;
     }
   }
 
-  netWorkingMins = Math.max(0, netWorkingMins - totalExtraMinutes);
-
-  return netWorkingMins;
+  return Math.max(0, totalShiftMins - breakLimitMinutes);
 }

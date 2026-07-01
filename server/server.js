@@ -16,6 +16,7 @@ import LeaveCategory from './models/LeaveCategory.js';
 import BreakType from './models/BreakType.js';
 import { calculateNetWorkingMinutes } from './utils/shift.js';
 import { getShiftTimeInUTC } from './utils/timezone.js';
+import { runRecalculation } from './recalculate_durations.js';
 
 // Import Routes
 import authRoutes from './routes/auth.js';
@@ -84,6 +85,9 @@ mongoose
     await seedSuperAdmin();
     await seedDefaultLeaveCategories();
     
+    // Recalculate net working hours in the background
+    runRecalculation().catch(err => console.error('Recalculation on startup failed:', err));
+    
     // Start listening on port
     server.listen(PORT, () => {
       console.log(`Express HRM Server running on port ${PORT}`);
@@ -125,12 +129,6 @@ mongoose
               status: { $in: ['active', 'on_break'] }
             }).populate('userId');
 
-            const breakTypes = await BreakType.find({});
-            const breakLimitMap = {};
-            breakTypes.forEach((bt) => {
-              breakLimitMap[bt.name.toUpperCase()] = bt.duration;
-            });
-
             for (const session of activeSessions) {
               if (!session.userId) continue;
               const user = session.userId;
@@ -158,12 +156,13 @@ mongoose
                   }
                 });
 
+                const userBreakLimit = user.breakLimitMinutes !== undefined ? user.breakLimitMinutes : 0;
+
                 // Calculate net working minutes utilizing the utility function
                 const netWorkingMins = calculateNetWorkingMinutes(
                   session.clockIn,
                   clockOutTime,
-                  session.breaks,
-                  breakLimitMap
+                  userBreakLimit
                 );
 
                 session.clockOut = clockOutTime;
