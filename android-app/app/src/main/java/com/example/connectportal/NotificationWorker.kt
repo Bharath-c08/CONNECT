@@ -78,7 +78,7 @@ class NotificationWorker(context: Context, params: WorkerParameters) : Coroutine
         )
 
         val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Standard system info icon
+            .setSmallIcon(R.mipmap.ic_launcher) // Custom app launcher icon
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
