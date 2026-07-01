@@ -28,6 +28,7 @@ import taskRoutes from './routes/tasks.js';
 import chatRoutes from './routes/chats.js';
 import notificationRoutes from './routes/notifications.js';
 import meetingRoutes from './routes/meetings.js';
+import eventRoutes from './routes/events.js';
 
 // Initialize Dotenv
 dotenv.config();
@@ -58,6 +59,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/meetings', meetingRoutes);
+app.use('/api/events', eventRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

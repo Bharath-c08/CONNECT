@@ -236,6 +236,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Encrypted Feeds', index: '07', href: '/dashboard/chat', icon: MessageSquare, role: 'all' },
     { name: 'Operational Calendar', index: '08', href: '/dashboard/calendar', icon: Calendar, role: 'all' },
     { name: 'Operational Notes', index: '09', href: '/dashboard/notes', icon: Edit, role: 'all' },
+    { name: 'Communal Events', index: '10', href: '/dashboard/events', icon: Radio, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link

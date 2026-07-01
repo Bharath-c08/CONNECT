@@ -12,7 +12,9 @@ import {
   Activity,
   Maximize2,
   Download,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { exportToCSV, exportToPDF } from '../../../utils/export';
 import { apiRequest, getCurrentUser, getSocketUrl } from '../../../utils/api';
@@ -71,6 +73,11 @@ export default function TimesheetsPage() {
     shiftType: 'regular',
     approvalStatus: 'approved'
   });
+
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [selectedDateForDetail, setSelectedDateForDetail] = useState<Date | null>(null);
 
   // Filters state (Admin)
   const [selectedStaff, setSelectedStaff] = useState('');
@@ -330,7 +337,15 @@ export default function TimesheetsPage() {
     let totalBreaks = 0;
     let totalBreakMinutes = 0;
 
-    sessions.forEach(session => {
+    const filtered = sessions.filter(session => {
+      if (viewMode === 'table') return true;
+      
+      const sessionDate = new Date(session.clockIn);
+      return sessionDate.getMonth() === currentMonth &&
+             sessionDate.getFullYear() === currentYear;
+    });
+
+    filtered.forEach(session => {
       if (session.status === 'completed') {
         completedShifts++;
         totalMinutes += session.duration || 0;
@@ -420,7 +435,7 @@ export default function TimesheetsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto select-none">
+        <div className="flex flex-col items-start md:items-end gap-3 self-start md:self-auto select-none">
           <div className="tab-bar">
             {isAdmin && (
               <>
@@ -452,17 +467,38 @@ export default function TimesheetsPage() {
             </button>
           </div>
 
-          {/* Export button — shown only on history tabs, not live monitor or breaks */}
+          {/* View Toggles & Export buttons — shown only on history tabs */}
           {tab !== 'admin_live' && tab !== 'admin_breaks' && (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setExportModalOpen(true)}
-              className="btn btn-secondary h-9 px-3 text-[10px] cursor-pointer flex items-center gap-1.5 shrink-0"
-              title="Export timesheet data"
-            >
-              <Download className="w-3.5 h-3.5" />
-              EXPORT
-            </motion.button>
+            <div className="flex items-center gap-2 shrink-0 select-none">
+              <div className="tab-bar h-9 flex items-center px-0.5">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`tab-btn relative cursor-pointer h-7 text-[9px] px-3 font-extrabold uppercase transition-all tracking-wider border-0 outline-none ${
+                    viewMode === 'table' ? 'active' : ''
+                  }`}
+                >
+                  ALL HISTORIC
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`tab-btn relative cursor-pointer h-7 text-[9px] px-3 font-extrabold uppercase transition-all tracking-wider border-0 outline-none ${
+                    viewMode === 'calendar' ? 'active' : ''
+                  }`}
+                >
+                  MONTHLY CALENDAR
+                </button>
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setExportModalOpen(true)}
+                className="btn btn-secondary h-9 px-3 text-[10px] cursor-pointer flex items-center gap-1.5 shrink-0"
+                title="Export timesheet data"
+              >
+                <Download className="w-3.5 h-3.5" />
+                EXPORT
+              </motion.button>
+            </div>
           )}
         </div>
       </motion.div>
@@ -696,187 +732,350 @@ export default function TimesheetsPage() {
             >
               <div className="absolute top-1 left-2 text-[6px] opacity-20">DECK // HISTORIC_LOGS_STREAM</div>
               
-              <div className="overflow-x-auto pt-4">
-                <table className="w-full text-left border-collapse text-[11px] select-none">
-                  <thead>
-                    <tr className="border-b bg-zinc-950/50 font-extrabold text-slate-400 uppercase tracking-widest" style={{ borderColor: 'var(--border)' }}>
-                      {tab === 'admin_history' && <th className="py-3.5 px-5">OPERATOR</th>}
-                      <th className="py-3.5 px-5">SYS_DATE</th>
-                      <th className="py-3.5 px-5">SHIFT_IN</th>
-                      <th className="py-3.5 px-5">SHIFT_OUT</th>
-                      <th className="py-3.5 px-5 text-center">CLOCK_IN_TIME</th>
-                      <th className="py-3.5 px-5 text-center">BREAK_TIME</th>
-                      <th className="py-3.5 px-5 text-center">NET_WORKING</th>
-                      <th className="py-3.5 px-5 text-center">LINK_STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y text-slate-300" style={{ borderColor: 'var(--border)' }}>
-                    {sessions.map((session) => {
-                      const totalSessionMins = session.clockOut
-                        ? Math.round((new Date(session.clockOut).getTime() - new Date(session.clockIn).getTime()) / 60000)
-                        : Math.round((Date.now() - new Date(session.clockIn).getTime()) / 60000);
+              {/* View Toggle Bar */}
+              <div className="flex items-center justify-end p-2 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex bg-zinc-900 rounded p-0.5 select-none">
+                  <button 
+                    onClick={() => setViewMode('table')}
+                    className={`px-3 py-1 text-[9px] font-bold uppercase rounded ${viewMode === 'table' ? 'bg-zinc-800 text-white' : 'text-slate-500'}`}
+                  >
+                    Table
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('calendar')}
+                    className={`px-3 py-1 text-[9px] font-bold uppercase rounded ${viewMode === 'calendar' ? 'bg-zinc-800 text-white' : 'text-slate-500'}`}
+                  >
+                    Calendar
+                  </button>
+                </div>
+              </div>
+              
+              {viewMode === 'calendar' ? (
+                <div className="p-5 font-mono select-none calendar-grid-container">
+                  {/* Calendar Navigation Header */}
+                  <div className="flex items-center justify-between mb-6 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <h3 className="text-xs font-bold text-white tracking-widest uppercase flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-[#ef4444]" />
+                      <span>
+                        // CALENDAR_VIEW: {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' }).toUpperCase()} {currentYear}
+                      </span>
+                    </h3>
+                    
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentMonth === 0) {
+                            setCurrentMonth(11);
+                            setCurrentYear(prev => prev - 1);
+                          } else {
+                            setCurrentMonth(prev => prev - 1);
+                          }
+                        }}
+                        className="btn btn-secondary h-8 w-8 cursor-pointer flex items-center justify-center p-0"
+                        title="PREVIOUS_MONTH"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const today = new Date();
+                          setCurrentMonth(today.getMonth());
+                          setCurrentYear(today.getFullYear());
+                        }}
+                        className="btn btn-secondary h-8 px-2.5 text-[9px] font-extrabold uppercase cursor-pointer"
+                      >
+                        CURRENT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentMonth === 11) {
+                            setCurrentMonth(0);
+                            setCurrentYear(prev => prev + 1);
+                          } else {
+                            setCurrentMonth(prev => prev + 1);
+                          }
+                        }}
+                        className="btn btn-secondary h-8 w-8 cursor-pointer flex items-center justify-center p-0"
+                        title="NEXT_MONTH"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {/* Days of Week Header */}
+                    {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => (
+                      <div key={day} className="text-center py-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest bg-zinc-950/40 border rounded-sm" style={{ borderColor: 'var(--border)' }}>
+                        {day}
+                      </div>
+                    ))}
+
+                    {/* Empty cells for leading days */}
+                    {Array.from({ length: new Date(currentYear, currentMonth, 1).getDay() }).map((_, index) => (
+                      <div key={`empty-${index}`} className="min-h-[110px] bg-zinc-950/10 border border-dashed rounded-sm opacity-25" style={{ borderColor: 'var(--border)' }} />
+                    ))}
+
+                    {/* Current Month Days */}
+                    {Array.from({ length: new Date(currentYear, currentMonth + 1, 0).getDate() }).map((_, index) => {
+                      const day = index + 1;
+                      const isToday = new Date().getDate() === day && new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
                       
-                      let breakMinutes = 0;
-                      if (session.breaks && session.breaks.length > 0) {
-                        session.breaks.forEach((b: any) => {
-                          const ended = b.endedAt ? new Date(b.endedAt).getTime() : Date.now();
-                          breakMinutes += Math.round((ended - new Date(b.startedAt).getTime()) / 60000);
-                        });
-                      }
+                      // Filter sessions for this day
+                      const daySessions = sessions.filter((s) => {
+                        const sDate = new Date(s.clockIn);
+                        return sDate.getFullYear() === currentYear &&
+                               sDate.getMonth() === currentMonth &&
+                               sDate.getDate() === day;
+                      });
 
                       return (
-                        <tr key={session._id} className="hover:bg-cyan-500/[0.02] transition-all">
-                          {tab === 'admin_history' && (
-                            <td className="py-3 px-5">
-                              <div className="font-extrabold text-white">{session.userId?.fullName.toUpperCase()}</div>
-                              <div className="text-[9px] text-slate-500 mt-0.5 tracking-wider uppercase">{session.userId?.employeeId} &bull; {session.userId?.jobTitle}</div>
-                            </td>
-                          )}
-                          <td className="py-3 px-5 font-semibold">
-                            <div>{new Date(session.clockIn).toLocaleDateString([], { dateStyle: 'medium' })}</div>
-                            <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-[3px] text-[8px] font-extrabold uppercase tracking-wide border ${
-                              session.shiftType === 'overtime'
-                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
-                                : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
-                            }`}>
-                              {session.shiftType === 'overtime' ? 'OVERTIME (OT)' : 'REGULAR'}
+                        <div 
+                          key={`day-${day}`} 
+                          onClick={() => {
+                            setSelectedDateForDetail(new Date(currentYear, currentMonth, day));
+                          }}
+                          className={`min-h-[110px] flex flex-col justify-between p-2.5 rounded bg-zinc-950/20 border hover:bg-zinc-900/30 cursor-pointer transition-all relative ${
+                            isToday 
+                              ? 'border-[#ef4444]/60 shadow-[inset_0_0_8px_rgba(239,68,68,0.05)]' 
+                              : ''
+                          }`}
+                          style={{ borderColor: isToday ? undefined : 'var(--border)' }}
+                        >
+                          <div className="flex items-center justify-between select-none">
+                            {isToday && (
+                              <span className="text-[6px] font-extrabold bg-[#ef4444]/15 border border-[#ef4444]/30 text-[#ef4444] px-1 py-0.5 rounded-[2px] uppercase tracking-wider">
+                                today
+                              </span>
+                            )}
+                            <span className={`text-[10px] font-bold ml-auto ${isToday ? 'text-[#ef4444]' : 'text-slate-500'}`}>
+                              {day.toString().padStart(2, '0')}
                             </span>
-                          </td>
-                          <td className="py-3 px-5">
-                            {new Date(session.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td className="py-3 px-5">
-                            {session.clockOut
-                               ? new Date(session.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                               : '--:--'}
-                          </td>
-                          <td className="py-3 px-5 text-center font-mono">
-                            {formatMinutesToHoursAndMins(totalSessionMins)}
-                          </td>
-                          <td className="py-3 px-5 text-center font-mono text-amber-400">
-                            {formatMinutesToHoursAndMins(session.userId?.breakLimitMinutes ?? 0)} ({session.breaks?.length || 0} breaks)
-                            {session.breaks?.length > 0 && (
-                              <div className="text-[9px] text-slate-500 font-normal font-sans mt-0.5">
-                                ({session.breaks.map((b: any) => `${b.breakType}: ${formatMinutesToHoursAndMins(b.duration)}`).join(', ')})
+                          </div>
+
+                          <div className="flex-1 mt-2.5 overflow-y-auto scrollbar-none max-h-[70px]">
+                            {daySessions.slice(0, 3).map((session) => (
+                              <div
+                                key={session._id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isAdmin) {
+                                    openEditSessionModal(session);
+                                  }
+                                }}
+                                className={`text-[9px] leading-tight px-1.5 py-0.5 rounded truncate select-none cursor-pointer border hover:scale-[1.02] active:scale-[0.98] transition-all font-mono mb-1 ${
+                                  session.shiftType === 'overtime'
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/15'
+                                    : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/15'
+                                }`}
+                                title={`${session.userId?.fullName || 'Operator'} (${formatMinutesToHoursAndMins(session.duration)})`}
+                              >
+                                {tab === 'admin_history' && session.userId?.fullName 
+                                  ? `${session.userId.fullName.split(' ')[0]}: ` 
+                                  : ''}
+                                {formatMinutesToHoursAndMins(session.duration)}
+                              </div>
+                            ))}
+                            {daySessions.length > 3 && (
+                              <div className="text-[8px] text-slate-500 font-extrabold pl-1.5 select-none">
+                                + {daySessions.length - 3} MORE
                               </div>
                             )}
-                          </td>
-                          <td className="py-3 px-5 text-center font-bold text-cyan-400 font-mono">
-                            {session.status === 'completed'
-                               ? formatMinutesToHoursAndMins(session.duration)
-                               : 'ACTIVE'}
-                          </td>
-                          <td className="py-3 px-5 text-center">
-                            {session.status === 'completed' ? (
-                              session.needsApproval ? (
-                                isAdmin ? (
-                                  <div className="flex items-center justify-center gap-1.5 select-none font-mono">
-                                    <button
-                                      onClick={() => handleApproveShift(session._id)}
-                                      className="py-1 px-2.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
-                                    >
-                                      APPROVE
-                                    </button>
-                                    <button
-                                      onClick={() => handleRejectShift(session._id)}
-                                      className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
-                                      title="Disapprove this shift session"
-                                    >
-                                      DISAPPROVE
-                                    </button>
-                                    <button
-                                      onClick={() => openEditSessionModal(session)}
-                                      className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
-                                    >
-                                      EDIT
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteSession(session._id)}
-                                      className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
-                                    >
-                                      DELETE
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">PENDING APPROVAL</span>
-                                )
-                              ) : session.approvalStatus === 'rejected' ? (
-                                <div className="flex items-center justify-center gap-1.5 select-none font-mono">
-                                  <span className="px-2 py-0.5 text-[8px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded-sm badge uppercase">DISAPPROVED</span>
-                                  {isAdmin && (
-                                    <>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto pt-4">
+                  <table className="w-full text-left border-collapse text-[11px] select-none">
+                    <thead>
+                      <tr className="border-b bg-zinc-950/50 font-extrabold text-slate-400 uppercase tracking-widest" style={{ borderColor: 'var(--border)' }}>
+                        {tab === 'admin_history' && <th className="py-3.5 px-5">OPERATOR</th>}
+                        <th className="py-3.5 px-5">SYS_DATE</th>
+                        <th className="py-3.5 px-5">SHIFT_IN</th>
+                        <th className="py-3.5 px-5">SHIFT_OUT</th>
+                        <th className="py-3.5 px-5 text-center">CLOCK_IN_TIME</th>
+                        <th className="py-3.5 px-5 text-center">BREAK_TIME</th>
+                        <th className="py-3.5 px-5 text-center">NET_WORKING</th>
+                        <th className="py-3.5 px-5 text-center">LINK_STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-slate-300" style={{ borderColor: 'var(--border)' }}>
+                      {sessions.map((session) => {
+                        const totalSessionMins = session.clockOut
+                          ? Math.round((new Date(session.clockOut).getTime() - new Date(session.clockIn).getTime()) / 60000)
+                          : Math.round((Date.now() - new Date(session.clockIn).getTime()) / 60000);
+
+                        return (
+                          <tr key={session._id} className="hover:bg-cyan-500/[0.02] transition-all">
+                            {tab === 'admin_history' && (
+                              <td className="py-3 px-5">
+                                <div className="font-extrabold text-white">{session.userId?.fullName.toUpperCase()}</div>
+                                <div className="text-[9px] text-slate-500 mt-0.5 tracking-wider uppercase">{session.userId?.employeeId} &bull; {session.userId?.jobTitle}</div>
+                              </td>
+                            )}
+                            <td className="py-3 px-5 font-semibold">
+                              <div>{new Date(session.clockIn).toLocaleDateString([], { dateStyle: 'medium' })}</div>
+                              <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-[3px] text-[8px] font-extrabold uppercase tracking-wide border ${
+                                session.shiftType === 'overtime'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                  : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+                              }`}>
+                                {session.shiftType === 'overtime' ? 'OVERTIME (OT)' : 'REGULAR'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-5">
+                              {new Date(session.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="py-3 px-5">
+                              {session.clockOut
+                                 ? new Date(session.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                 : '--:--'}
+                            </td>
+                            <td className="py-3 px-5 text-center font-mono">
+                              {formatMinutesToHoursAndMins(totalSessionMins)}
+                            </td>
+                            <td className="py-3 px-5 text-center font-mono text-amber-400">
+                              {formatMinutesToHoursAndMins(session.userId?.breakLimitMinutes ?? 0)} ({session.breaks?.length || 0} breaks)
+                              {session.breaks?.length > 0 && (
+                                <div className="text-[9px] text-slate-500 font-normal font-sans mt-0.5">
+                                  ({session.breaks.map((b: any) => `${b.breakType}: ${formatMinutesToHoursAndMins(b.duration)}`).join(', ')})
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-5 text-center font-bold text-cyan-400 font-mono">
+                              {session.status === 'completed'
+                                 ? formatMinutesToHoursAndMins(session.duration)
+                                 : 'ACTIVE'}
+                            </td>
+                            <td className="py-3 px-5 text-center">
+                              {session.status === 'completed' ? (
+                                session.needsApproval ? (
+                                  isAdmin ? (
+                                    <div className="flex items-center justify-center gap-1.5 select-none font-mono">
                                       <button
+                                        type="button"
                                         onClick={() => handleApproveShift(session._id)}
                                         className="py-1 px-2.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
-                                        title="Re-approve and complete this shift"
                                       >
                                         APPROVE
                                       </button>
                                       <button
-                                        onClick={() => openEditSessionModal(session)}
-                                        className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
-                                      >
-                                        EDIT
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteSession(session._id)}
-                                        className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
-                                      >
-                                        DELETE
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center gap-1.5 select-none font-mono">
-                                  <span className="px-2 py-0.5 text-[8px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-sm badge uppercase">
-                                    {session.approvalStatus === 'approved' ? 'APPROVED' : 'COMPLETED'}
-                                  </span>
-                                  {isAdmin && (
-                                    <>
-                                      <button
+                                        type="button"
                                         onClick={() => handleRejectShift(session._id)}
                                         className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
-                                        title="Disapprove and reject this completed shift"
+                                        title="Disapprove this shift session"
                                       >
                                         DISAPPROVE
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => openEditSessionModal(session)}
                                         className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
                                       >
                                         EDIT
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => handleDeleteSession(session._id)}
                                         className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
                                       >
                                         DELETE
                                       </button>
-                                    </>
-                                  )}
-                                </div>
-                              )
-                            ) : session.status === 'on_break' ? (
-                              <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">ON BREAK</span>
-                            ) : (
-                              <span className="px-2 py-0.5 text-[8px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded-sm badge uppercase animate-pulse">STREAMING</span>
-                            )}
+                                    </div>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">PENDING APPROVAL</span>
+                                  )
+                                ) : session.approvalStatus === 'rejected' ? (
+                                  <div className="flex items-center justify-center gap-1.5 select-none font-mono">
+                                    <span className="px-2 py-0.5 text-[8px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded-sm badge uppercase">DISAPPROVED</span>
+                                    {isAdmin && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleApproveShift(session._id)}
+                                          className="py-1 px-2.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
+                                          title="Re-approve and complete this shift"
+                                        >
+                                          APPROVE
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditSessionModal(session)}
+                                          className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                        >
+                                          EDIT
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteSession(session._id)}
+                                          className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                        >
+                                          DELETE
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1.5 select-none font-mono">
+                                    <span className="px-2 py-0.5 text-[8px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-sm badge uppercase">
+                                      {session.approvalStatus === 'approved' ? 'APPROVED' : 'COMPLETED'}
+                                    </span>
+                                    {isAdmin && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRejectShift(session._id)}
+                                          className="py-1 px-2.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/25 hover:bg-rose-500/20 text-[9px] font-extrabold cursor-pointer transition-all"
+                                          title="Disapprove and reject this completed shift"
+                                        >
+                                          DISAPPROVE
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditSessionModal(session)}
+                                          className="py-1 px-2.5 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                        >
+                                          EDIT
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteSession(session._id)}
+                                          className="py-1 px-2.5 rounded bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/25 hover:bg-[#ef4444]/20 text-[9px] font-extrabold cursor-pointer transition-all uppercase"
+                                        >
+                                          DELETE
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )
+                              ) : session.status === 'on_break' ? (
+                                <span className="px-2 py-0.5 text-[8px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/25 rounded-sm badge uppercase animate-pulse">ON BREAK</span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-[8px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded-sm badge uppercase animate-pulse">STREAMING</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {sessions.length === 0 && (
+                        <tr>
+                          <td colSpan={tab === 'admin_history' ? 7 : 6} className="text-center py-16 text-slate-500 text-xs italic select-none">
+                            NO SHIFT DATA DECODED IN CURRENT SPECIFIED TIMELINE.
                           </td>
                         </tr>
-                      );
-                    })}
-
-                    {sessions.length === 0 && (
-                      <tr>
-                        <td colSpan={tab === 'admin_history' ? 7 : 6} className="text-center py-16 text-slate-500 text-xs italic select-none">
-                          NO SHIFT DATA DECODED IN CURRENT SPECIFIED TIMELINE.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -1202,6 +1401,196 @@ export default function TimesheetsPage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Date Detail Drawer */}
+      <AnimatePresence>
+        {selectedDateForDetail && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedDateForDetail(null)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+            {/* Drawer Container */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-zinc-950 border-l border-white/10 z-50 shadow-2xl flex flex-col font-mono calendar-drawer-container"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-white/10 flex items-center justify-between bg-zinc-900/50">
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-widest uppercase">
+                    // SHIFT_DETAILS: {selectedDateForDetail.toLocaleDateString([], { dateStyle: 'long' }).toUpperCase()}
+                  </h3>
+                  <p className="text-[8px] text-slate-500 tracking-wider uppercase mt-1">
+                    Telemetry logs for {selectedDateForDetail.toLocaleDateString([], { weekday: 'long' })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedDateForDetail(null)}
+                  className="h-8 w-8 rounded border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 cursor-pointer text-lg font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {(() => {
+                  const daySessions = sessions.filter((s) => {
+                    const sDate = new Date(s.clockIn);
+                    return sDate.getFullYear() === selectedDateForDetail.getFullYear() &&
+                           sDate.getMonth() === selectedDateForDetail.getMonth() &&
+                           sDate.getDate() === selectedDateForDetail.getDate();
+                  });
+
+                  if (daySessions.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-slate-500 text-xs italic">
+                        NO ACTIVE SHIFT RECORDS REGISTERED FOR THIS DATE.
+                      </div>
+                    );
+                  }
+
+                  return daySessions.map((session) => {
+                    const totalSessionMins = session.clockOut
+                      ? Math.round((new Date(session.clockOut).getTime() - new Date(session.clockIn).getTime()) / 60000)
+                      : Math.round((Date.now() - new Date(session.clockIn).getTime()) / 60000);
+
+                    return (
+                      <div
+                        key={session._id}
+                        className="p-4 rounded border border-white/5 bg-zinc-900/30 space-y-3 relative overflow-hidden"
+                      >
+                        <div className="absolute top-1 right-2 text-[6px] opacity-10 font-mono">NODE_LOG_{session._id.substring(18)}</div>
+                        
+                        {/* Operator Info */}
+                        <div className="flex items-center gap-3 border-b border-white/5 pb-2.5">
+                          <div className="h-8 w-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold text-xs">
+                            {session.userId?.fullName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'OP'}
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-xs text-white uppercase">{session.userId?.fullName || 'UNKNOWN OPERATOR'}</div>
+                            <div className="text-[8px] text-slate-500 mt-0.5 tracking-wider uppercase">
+                              {session.userId?.employeeId || 'NO ID'} &bull; {session.userId?.jobTitle || 'OPERATOR'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Shift Times */}
+                        <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-400 font-mono">
+                          <div>
+                            <span className="text-slate-500 block text-[8px] uppercase">clock_in:</span>
+                            <span className="text-white font-bold">{new Date(session.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[8px] uppercase">clock_out:</span>
+                            <span className="text-white font-bold">
+                              {session.clockOut 
+                                ? new Date(session.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : 'ACTIVE'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Shift Durations & Types */}
+                        <div className="grid grid-cols-3 gap-2 pt-2 text-[9px] font-mono border-t border-dashed border-white/5">
+                          <div>
+                            <span className="text-slate-500 block text-[8px] uppercase">total_time:</span>
+                            <span className="text-slate-300 font-semibold">{formatMinutesToHoursAndMins(totalSessionMins)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[8px] uppercase">break_limit:</span>
+                            <span className="text-amber-400 font-semibold">{formatMinutesToHoursAndMins(session.userId?.breakLimitMinutes ?? 0)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[8px] uppercase">net_working:</span>
+                            <span className="text-cyan-400 font-bold">
+                              {session.status === 'completed' ? formatMinutesToHoursAndMins(session.duration) : 'ACTIVE'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Approval / Actions */}
+                        <div className="flex items-center justify-between gap-1.5 pt-3 border-t border-white/5">
+                          <div>
+                            <span className={`inline-block px-1.5 py-0.5 rounded-[2px] text-[7px] font-extrabold uppercase border ${
+                              session.shiftType === 'overtime'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+                            }`}>
+                              {session.shiftType === 'overtime' ? 'overtime' : 'regular'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {session.status === 'completed' ? (
+                              session.needsApproval ? (
+                                isAdmin ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleApproveShift(session._id)}
+                                      className="py-1 px-2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 text-[8px] font-bold cursor-pointer transition-all border-0 outline-none"
+                                    >
+                                      APPROVE
+                                    </button>
+                                    <button
+                                      onClick={() => handleRejectShift(session._id)}
+                                      className="py-1 px-2 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 text-[8px] font-bold cursor-pointer transition-all border-0 outline-none"
+                                    >
+                                      REJECT
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-[7px] font-bold text-amber-400 tracking-wider">PENDING APPROVAL</span>
+                                )
+                              ) : session.approvalStatus === 'rejected' ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[7px] font-bold text-rose-400 tracking-wider">REJECTED</span>
+                                  {isAdmin && (
+                                    <button
+                                      onClick={() => handleApproveShift(session._id)}
+                                      className="py-1 px-2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 text-[8px] font-bold cursor-pointer transition-all border-0 outline-none"
+                                    >
+                                      APPROVE
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[7px] font-bold text-emerald-400 tracking-wider">APPROVED</span>
+                              )
+                            ) : (
+                              <span className="text-[7px] font-bold text-cyan-400 tracking-wider animate-pulse">ACTIVE_STREAMING</span>
+                            )}
+
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  setSelectedDateForDetail(null);
+                                  openEditSessionModal(session);
+                                }}
+                                className="py-1 px-2 rounded bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-white text-[8px] font-bold cursor-pointer transition-all uppercase border-0"
+                              >
+                                edit
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
