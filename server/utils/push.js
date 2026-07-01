@@ -2,21 +2,9 @@ import webpush from 'web-push';
 import User from '../models/User.js';
 
 let vapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY,
-  privateKey: process.env.VAPID_PRIVATE_KEY
+  publicKey: process.env.VAPID_PUBLIC_KEY || 'BHYcPxn3TRLGKCXd6Ywo0FjDvKYo8pIF5Wv4LXpIj24HeThKhKeL6d-RreBqjf15CpITXHhUmFXmIvPy9m6BbYg',
+  privateKey: process.env.VAPID_PRIVATE_KEY || 'uWYT8Zjzeukhd_qJFwbi6EUdlY46EefoFe7jiuxzSPQ'
 };
-
-// Generate on-the-fly keys if none are set
-if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
-  const keys = webpush.generateVAPIDKeys();
-  vapidKeys.publicKey = keys.publicKey;
-  vapidKeys.privateKey = keys.privateKey;
-  console.log('---------------------------------------------------------');
-  console.log('★ AUTO-GENERATED VAPID KEYS FOR PWA PUSH NOTIFICATIONS ★');
-  console.log('PUBLIC KEY:', keys.publicKey);
-  console.log('PRIVATE KEY:', keys.privateKey);
-  console.log('---------------------------------------------------------');
-}
 
 webpush.setVapidDetails(
   'mailto:admin@connect.portal',
