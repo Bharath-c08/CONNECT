@@ -68,8 +68,11 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/events', eventRoutes);
 
 // Serve compiled Android app APK
+app.get('/Dotcore.apk', (req, res) => {
+  res.sendFile(path.join(__dirname, 'Dotcore.apk'));
+});
 app.get('/app.apk', (req, res) => {
-  res.sendFile(path.join(__dirname, 'app.apk'));
+  res.sendFile(path.join(__dirname, 'Dotcore.apk'));
 });
 
 // Health check endpoint

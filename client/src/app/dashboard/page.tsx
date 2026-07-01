@@ -107,7 +107,7 @@ export default function DashboardPage() {
   }, []);
 
   const handleApkDownload = () => {
-    window.location.href = `${getSocketUrl()}/app.apk`;
+    window.location.href = `${getSocketUrl()}/Dotcore.apk`;
   };
 
   useEffect(() => {
