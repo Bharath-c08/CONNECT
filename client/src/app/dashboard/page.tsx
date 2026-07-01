@@ -51,6 +51,8 @@ export default function DashboardPage() {
   const [leaves, setLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [events, setEvents] = useState<any[]>([]);
+  const [celebrations, setCelebrations] = useState<any[]>([]);
   
   const [breakTypes, setBreakTypes] = useState<any[]>([]);
   const [selectedBreakType, setSelectedBreakType] = useState<any>(null);
@@ -145,14 +147,16 @@ export default function DashboardPage() {
         taskDataRes,
         historyDataRes,
         leaveDataRes,
-        breakTypesDataRes
+        breakTypesDataRes,
+        eventsRes
       ] = await Promise.allSettled([
         apiRequest('/auth/me'),
         apiRequest(`/clock/status?timezone=${Intl.DateTimeFormat().resolvedOptions().timeZone}`),
         apiRequest('/tasks/my'),
         apiRequest('/clock/history'),
         apiRequest('/leaves/my'),
-        apiRequest('/clock/breaks/types')
+        apiRequest('/clock/breaks/types'),
+        apiRequest('/events')
       ]);
 
       if (userProfileRes.status === 'fulfilled') {
@@ -198,6 +202,13 @@ export default function DashboardPage() {
         setLeaves(leaveDataRes.value.slice(0, 3));
       } else {
         console.error('Error fetching leaves:', leaveDataRes.reason);
+      }
+
+      if (eventsRes.status === 'fulfilled') {
+        setEvents(eventsRes.value.events || []);
+        setCelebrations(eventsRes.value.celebrations || []);
+      } else {
+        console.error('Error fetching events:', eventsRes.reason);
       }
 
       if (breakTypesDataRes.status === 'fulfilled') {
@@ -419,6 +430,77 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       )}
+
+      {/* Communal Events & Celebrations Spotlight Alert */}
+      {(() => {
+        const todayStr = new Date().toDateString();
+        const todayEvents = events.filter(e => new Date(e.date).toDateString() === todayStr);
+        const todayCelebrations = celebrations.filter(c => c.isToday);
+        
+        if (todayCelebrations.length === 0 && todayEvents.length === 0) return null;
+        
+        return (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={springTransition}
+            className="mb-8 p-6 rounded-xl border relative overflow-hidden font-mono shadow-2xl select-none events-card-container"
+            style={{
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(217, 70, 239, 0.25) 50%, rgba(6, 182, 212, 0.25) 100%)',
+              borderColor: '#ef4444',
+              boxShadow: '0 0 25px rgba(239, 68, 68, 0.3), inset 0 0 15px rgba(217, 70, 239, 0.2)'
+            }}
+          >
+            <div className="text-[7px] text-pink-400 font-bold uppercase tracking-wider mb-4 animate-pulse">// PRIORITY_UPLINK: TODAY_COMMUNAL_ALERTS</div>
+            
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#ef4444] to-[#d946ef] text-white flex items-center justify-center shadow-lg shrink-0 animate-bounce">
+                <Radio className="w-6 h-6 animate-pulse" />
+              </div>
+              
+              <div className="flex-1 text-center md:text-left space-y-4">
+                {todayCelebrations.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-black text-white tracking-widest uppercase flex items-center justify-center md:justify-start gap-2">
+                      <span>TODAY'S CELEBRATIONS! 🎉</span>
+                    </h3>
+                    <div className="mt-1.5 space-y-1 text-xs">
+                      {todayCelebrations.map((c, i) => (
+                        <p key={i} className="text-slate-200">
+                          &bull; <strong className="text-cyan-400">{c.fullName.toUpperCase()}</strong> (ID: {c.employeeId}) is celebrating a{' '}
+                          <span className="text-pink-400 font-bold uppercase">
+                            {c.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${c.years} Year${c.years > 1 ? 's' : ''}) 🎖️`}
+                          </span>{' '}
+                          today!
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {todayEvents.length > 0 && (
+                  <div className={todayCelebrations.length > 0 ? "pt-3 border-t border-white/10" : ""}>
+                    <h3 className="text-sm font-black text-white tracking-widest uppercase text-left">
+                      TODAY'S EVENT LOGS & ANNOUNCEMENTS
+                    </h3>
+                    <div className="mt-2 space-y-3">
+                      {todayEvents.map((event) => (
+                        <div key={event._id} className="p-3.5 rounded border bg-zinc-950/40 border-white/5 text-left">
+                          <h4 className="text-xs font-bold text-cyan-400 uppercase">{event.title}</h4>
+                          <p className="text-xs text-slate-350 mt-1 leading-relaxed whitespace-pre-line">{event.description}</p>
+                          <p className="text-[9px] text-slate-500 mt-2 uppercase tracking-wider">
+                            PUBLISHER: {event.creator?.fullName || 'SYSTEM_ADMIN'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        );
+      })()}
 
       {/* Bento Grid */}
       <motion.div 

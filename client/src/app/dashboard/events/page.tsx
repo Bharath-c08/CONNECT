@@ -152,6 +152,10 @@ export default function EventsPage() {
   };
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const todayStr = new Date().toDateString();
+  const displayedEvents = isAdmin 
+    ? events 
+    : events.filter(e => new Date(e.date).toDateString() === todayStr);
   const todayCelebrations = celebrations.filter(c => c.isToday);
   const upcomingCelebrations = celebrations.filter(c => !c.isToday);
 
@@ -230,36 +234,39 @@ export default function EventsPage() {
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-lg p-6 flex flex-col md:flex-row items-center gap-6 border shadow-2xl select-none"
+          className="relative overflow-hidden rounded-lg p-6 border shadow-2xl select-none"
           style={{
-            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(217, 70, 239, 0.15) 50%, rgba(6, 182, 212, 0.15) 100%)',
-            borderColor: 'rgba(239, 68, 68, 0.25)'
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(217, 70, 239, 0.25) 50%, rgba(6, 182, 212, 0.25) 100%)',
+            borderColor: '#ef4444',
+            boxShadow: '0 0 25px rgba(239, 68, 68, 0.3), inset 0 0 15px rgba(217, 70, 239, 0.2)'
           }}
         >
-          <div className="absolute top-1 left-2 text-[6px] opacity-25">SPOTLIGHT // TEAM_CELEBRATION</div>
+          <div className="text-[7px] text-pink-400 font-bold uppercase tracking-wider mb-4 animate-pulse">SPOTLIGHT // TEAM_CELEBRATION</div>
           
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#ef4444] to-[#d946ef] text-white shadow-lg animate-bounce">
-            <Gift className="h-8 w-8" />
-          </div>
-
-          <div className="flex-1 text-center md:text-left">
-            <h2 className="text-lg font-black text-white tracking-widest uppercase">
-              TRANSMITTING DAY CELEBRATIONS! 🎉
-            </h2>
-            <div className="mt-2 space-y-2 text-xs">
-              {todayCelebrations.map((c, i) => (
-                <div key={i} className="text-slate-200">
-                  &bull; <strong className="text-cyan-400 font-extrabold">{c.fullName.toUpperCase()}</strong> (ID: {c.employeeId}) is celebrating a{' '}
-                  <span className="text-pink-400 font-bold uppercase tracking-wider">
-                    {c.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${c.years} Year${c.years > 1 ? 's' : ''}) 🎖️`}
-                  </span>{' '}
-                  today!
-                </div>
-              ))}
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#ef4444] to-[#d946ef] text-white shadow-lg animate-bounce">
+              <Gift className="h-8 w-8" />
             </div>
-            <p className="mt-3.5 text-[9px] text-slate-500 uppercase tracking-widest">
-              Join the encrypted feeds channel to transmit your congratulations messages.
-            </p>
+
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-lg font-black text-white tracking-widest uppercase">
+                TRANSMITTING DAY CELEBRATIONS! 🎉
+              </h2>
+              <div className="mt-2 space-y-2 text-xs">
+                {todayCelebrations.map((c, i) => (
+                  <div key={i} className="text-slate-200">
+                    &bull; <strong className="text-cyan-400 font-extrabold">{c.fullName.toUpperCase()}</strong> (ID: {c.employeeId}) is celebrating a{' '}
+                    <span className="text-pink-400 font-bold uppercase tracking-wider">
+                      {c.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${c.years} Year${c.years > 1 ? 's' : ''}) 🎖️`}
+                    </span>{' '}
+                    today!
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3.5 text-[9px] text-slate-500 uppercase tracking-widest">
+                Join the encrypted feeds channel to transmit your congratulations messages.
+              </p>
+            </div>
           </div>
         </motion.div>
       )}
@@ -269,21 +276,23 @@ export default function EventsPage() {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 xl:grid-cols-3 gap-6"
+        className={`grid grid-cols-1 ${isAdmin ? 'xl:grid-cols-3' : ''} gap-6`}
       >
         {/* Left Column: Manual Events Feed */}
-        <div className="xl:col-span-2 space-y-4">
+        <div className={`${isAdmin ? 'xl:col-span-2' : ''} space-y-4`}>
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/10 pb-2">
-            // MANUAL_EVENTS_LOGS ({events.length})
+            {isAdmin ? `// MANUAL_EVENTS_LOGS (${displayedEvents.length})` : `// TODAY_EVENT_LOGS (${displayedEvents.length})`}
           </h3>
 
-          {events.length === 0 ? (
+          {displayedEvents.length === 0 ? (
             <div className="card text-center py-12 text-slate-500 text-xs italic">
-              NO ANNOUNCEMENTS OR MANUAL EVENTS RECORDED FOR YOUR TEAMS.
+              {isAdmin 
+                ? 'NO ANNOUNCEMENTS OR MANUAL EVENTS RECORDED FOR YOUR TEAMS.' 
+                : 'NO ANNOUNCEMENTS OR MANUAL EVENTS RECORDED FOR TODAY.'}
             </div>
           ) : (
             <div className="space-y-4">
-              {events.map((event) => (
+              {displayedEvents.map((event) => (
                 <motion.div
                   key={event._id}
                   variants={cardVariants}
@@ -334,45 +343,47 @@ export default function EventsPage() {
         </div>
 
         {/* Right Column: Upcoming celebrations list */}
-        <div className="space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/10 pb-2">
-            // MONTH_CELEBRATIONS_CALENDAR ({upcomingCelebrations.length})
-          </h3>
+        {isAdmin && (
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/10 pb-2">
+              // MONTH_CELEBRATIONS_CALENDAR ({upcomingCelebrations.length})
+            </h3>
 
-          {upcomingCelebrations.length === 0 ? (
-            <div className="card text-center py-8 text-slate-500 text-xs italic">
-              NO CELEBRATIONS SCHEDULED FOR THE REMAINING MONTH.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {upcomingCelebrations
-                .sort((a, b) => new Date(a.date).getDate() - new Date(b.date).getDate())
-                .map((c, i) => (
-                  <motion.div
-                    key={i}
-                    variants={cardVariants}
-                    className="card flex items-center gap-3.5 py-3 px-4"
-                  >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border shrink-0 ${
-                      c.type === 'birthday' 
-                        ? 'bg-pink-500/10 border-pink-500/20 text-pink-400' 
-                        : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                    }`}>
-                      {c.type === 'birthday' ? <Gift className="w-4 h-4" /> : <Award className="w-4 h-4" />}
-                    </div>
-                    
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold truncate text-white uppercase">{c.fullName}</p>
-                      <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">
-                        {c.type === 'birthday' ? 'Birthday' : `${c.years}-Year Anniversary`} &bull;{' '}
-                        {new Date(c.date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-            </div>
-          )}
-        </div>
+            {upcomingCelebrations.length === 0 ? (
+              <div className="card text-center py-8 text-slate-500 text-xs italic">
+                NO CELEBRATIONS SCHEDULED FOR THE REMAINING MONTH.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {upcomingCelebrations
+                  .sort((a, b) => new Date(a.date).getDate() - new Date(b.date).getDate())
+                  .map((c, i) => (
+                    <motion.div
+                      key={i}
+                      variants={cardVariants}
+                      className="card flex items-center gap-3.5 py-3 px-4"
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center border shrink-0 ${
+                        c.type === 'birthday' 
+                          ? 'bg-pink-500/10 border-pink-500/20 text-pink-400' 
+                          : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                      }`}>
+                        {c.type === 'birthday' ? <Gift className="w-4 h-4" /> : <Award className="w-4 h-4" />}
+                      </div>
+                      
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate text-white uppercase">{c.fullName}</p>
+                        <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">
+                          {c.type === 'birthday' ? 'Birthday' : `${c.years}-Year Anniversary`} &bull;{' '}
+                          {new Date(c.date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* Publish Event Dialog/Modal */}
