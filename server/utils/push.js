@@ -29,7 +29,13 @@ export const sendPushNotification = async (userId, title, body, url = '/dashboar
 
     const sendPromises = user.pushSubscriptions.map(async (sub) => {
       try {
-        await webpush.sendNotification(sub, payload);
+        const pushOptions = {
+          headers: {
+            'Urgency': 'high'
+          },
+          TTL: 86400
+        };
+        await webpush.sendNotification(sub, payload, pushOptions);
       } catch (err) {
         if (err.statusCode === 410 || err.statusCode === 404) {
           // Subscription expired or invalid, remove it

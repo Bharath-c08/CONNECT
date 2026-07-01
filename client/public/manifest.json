@@ -4,6 +4,7 @@
   "description": "Progressive Web Portal for HR, Clock Telemetry, and Secure Communications.",
   "start_url": "/dashboard",
   "display": "standalone",
+  "categories": ["productivity", "utilities"],
   "background_color": "#09090b",
   "theme_color": "#ef4444",
   "orientation": "portrait-primary",
