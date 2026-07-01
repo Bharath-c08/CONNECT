@@ -37,3 +37,53 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Listen to push broadcasts from the server
+self.addEventListener('push', (event) => {
+  let data = { title: 'CONNECT Portal', body: 'New transmission received.' };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'CONNECT Portal', body: event.data.text() };
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/images/Markdot logo black.png',
+    badge: '/favicon.ico',
+    data: {
+      url: data.url || '/dashboard'
+    },
+    vibrate: [100, 50, 100],
+    actions: [
+      { action: 'open', title: 'Open Console' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Handle clicks on push notifications
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/dashboard';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Focus existing tab if open, otherwise open new tab
+      for (let client of windowClients) {
+        if (client.url.includes(targetUrl) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

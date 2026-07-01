@@ -29,5 +29,14 @@ const notificationSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+notificationSchema.post('save', async function (doc) {
+  try {
+    const { sendPushNotification } = await import('../utils/push.js');
+    sendPushNotification(doc.recipientId, doc.title, doc.message, doc.link || '/dashboard');
+  } catch (err) {
+    console.error('Error in Notification post-save push hook:', err);
+  }
+});
+
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;
