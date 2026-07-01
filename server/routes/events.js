@@ -4,13 +4,76 @@ import Team from '../models/Team.js';
 import User from '../models/User.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 import { decrypt } from '../utils/crypto.js';
+import { syncJobRoleTeams } from '../utils/teams.js';
 
 const router = express.Router();
+
+// @route   GET /api/events/seed-test
+// @desc    Seed test event and team celebrations (Temporary route for testing)
+router.get('/seed-test', async (req, res) => {
+  try {
+    const teams = await Team.find({});
+    if (teams.length === 0) {
+      return res.status(400).json({ message: 'No teams found. Please create a team first.' });
+    }
+    const targetTeam = teams[0];
+
+    const admin = await User.findOne({ role: { $in: ['admin', 'superadmin'] } }) || await User.findOne({});
+    if (!admin) {
+      return res.status(400).json({ message: 'No users found.' });
+    }
+
+    // Clear existing manual events
+    await Event.deleteMany({});
+
+    // Create a manual event 3 days from now
+    const eventDate = new Date();
+    eventDate.setDate(eventDate.getDate() + 3);
+
+    const testEvent = new Event({
+      title: "Tactical Infrastructure Synchronization",
+      description: "Commencing scheduled operational synchronization of all core terminal endpoints. Please ensure your local clients remain connected during the maintenance window.",
+      date: eventDate,
+      targetTeams: [targetTeam._id],
+      creator: admin._id
+    });
+
+    await testEvent.save();
+
+    // Update team members to trigger birthday and anniversary celebrations
+    const members = await User.find({ _id: { $in: targetTeam.members } });
+    const today = new Date();
+
+    if (members.length > 0) {
+      // Set first member's birthday to today
+      const dob = new Date(1996, today.getMonth(), today.getDate());
+      await User.findByIdAndUpdate(members[0]._id, { dob });
+    }
+
+    if (members.length > 1) {
+      // Set second member's work anniversary to today (2 years ago)
+      const joiningDate = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate());
+      await User.findByIdAndUpdate(members[1]._id, { joiningDate });
+    } else if (members.length > 0) {
+      const joiningDate = new Date(today.getFullYear() - 3, today.getMonth(), today.getDate());
+      await User.findByIdAndUpdate(members[0]._id, { joiningDate });
+    }
+
+    res.json({
+      success: true,
+      message: 'Test event and team celebrations seeded successfully in production database!',
+      seededEvent: testEvent
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error seeding test data', error: error.message });
+  }
+});
 
 // @route   GET /api/events
 // @desc    Get communal events and team celebrations for the logged-in user
 router.get('/', verifyToken, async (req, res) => {
   try {
+    await syncJobRoleTeams();
     // 1. Get all teams the user belongs to
     const userTeams = await Team.find({
       $or: [

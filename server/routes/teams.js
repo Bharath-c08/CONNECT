@@ -3,6 +3,7 @@ import Team from '../models/Team.js';
 import User from '../models/User.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
+import { syncJobRoleTeams } from '../utils/teams.js';
 
 const router = express.Router();
 
@@ -63,6 +64,7 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
 // @desc    Get all teams (Available to all logged-in users)
 router.get('/', verifyToken, async (req, res) => {
   try {
+    await syncJobRoleTeams();
     const teams = await Team.find({})
       .populate('members', 'fullName email employeeId jobTitle role')
       .populate('admins', 'fullName email');
@@ -85,6 +87,7 @@ router.get('/', verifyToken, async (req, res) => {
 // @desc    Get teams that the logged-in user belongs to
 router.get('/my', verifyToken, async (req, res) => {
   try {
+    await syncJobRoleTeams();
     const teams = await Team.find({
       $or: [
         { members: req.user.userId },
