@@ -40,30 +40,33 @@ self.addEventListener('fetch', (event) => {
 
 // Listen to push broadcasts from the server
 self.addEventListener('push', (event) => {
-  let data = { title: 'CONNECT Portal', body: 'New transmission received.' };
+  let title = 'CONNECT Portal';
+  let body = 'New transmission received.';
+  let url = '/dashboard';
+
   if (event.data) {
     try {
-      data = event.data.json();
+      const data = event.data.json();
+      title = data.title || title;
+      body = data.body || body;
+      url = data.url || url;
     } catch (e) {
-      data = { title: 'CONNECT Portal', body: event.data.text() };
+      body = event.data.text() || body;
     }
   }
 
   const options = {
-    body: data.body,
-    icon: self.location.origin + '/images/Markdot logo black.png',
+    body: body,
+    icon: self.location.origin + '/images/Markdot%20logo%20black.png',
     badge: self.location.origin + '/favicon.ico',
     data: {
-      url: data.url || '/dashboard'
+      url: url
     },
-    vibrate: [100, 50, 100],
-    actions: [
-      { action: 'open', title: 'Open Console' }
-    ]
+    vibrate: [100, 50, 100]
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(title, options)
   );
 });
 
