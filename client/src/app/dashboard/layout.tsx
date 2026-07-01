@@ -54,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // PWA installation states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
+  const [isAndroidApp, setIsAndroidApp] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -70,9 +71,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Force show install/download button for all mobile users on load
-    if (typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
-      setShowInstallBtn(true);
+    // Force show install/download button for all mobile users on load & check context
+    if (typeof window !== 'undefined') {
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        setShowInstallBtn(true);
+      }
+      setIsAndroidApp(navigator.userAgent.includes('CONNECT_Android_App'));
     }
 
     return () => {
@@ -429,7 +433,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Topbar */}
         <header
           className="topbar justify-between sticky top-0 z-40 select-none border-b"
-          style={{ borderBottomColor: 'var(--border)', backgroundColor: 'rgba(2, 2, 4, 0.85)' }}
+          style={{
+            borderBottomColor: 'var(--border)',
+            backgroundColor: 'rgba(2, 2, 4, 0.85)',
+            paddingTop: isAndroidApp ? '40px' : '0px',
+            height: isAndroidApp ? 'calc(var(--topbar-height) + 40px)' : 'var(--topbar-height)'
+          }}
         >
           <div className="flex items-center gap-3">
             <button
@@ -492,13 +501,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
                     transition={springTransition}
-                    className="fixed top-[60px] left-1/2 -translate-x-1/2 md:absolute md:top-full md:right-0 md:left-auto md:-translate-x-0 mt-3 rounded-xl shadow-2xl z-50 overflow-hidden border w-[95vw] md:w-[320px]"
+                    className="fixed left-1/2 -translate-x-1/2 md:absolute md:top-full md:right-0 md:left-auto md:-translate-x-0 mt-3 rounded-xl shadow-2xl z-50 overflow-hidden border w-[95vw] md:w-[320px]"
                     style={{ 
                       display: 'flex',
                       flexDirection: 'column',
                       backgroundColor: 'var(--bg-elevated)', 
                       borderColor: 'var(--border-strong)',
-                      boxShadow: '0 0 30px rgba(6, 182, 212, 0.15)'
+                      boxShadow: '0 0 30px rgba(6, 182, 212, 0.15)',
+                      top: isAndroidApp ? 'calc(var(--topbar-height) + 44px)' : '60px'
                     }}
                   >
                     <div className="p-3.5 flex items-center justify-between shrink-0 font-mono text-[10px] font-extrabold uppercase border-b" style={{ borderColor: 'var(--border)' }}>
@@ -583,7 +593,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <div
                   className="flex items-center shrink-0 relative"
-                  style={{ height: 'var(--topbar-height)', borderBottom: '1px solid var(--border)' }}
+                  style={{
+                    paddingTop: isAndroidApp ? '40px' : '0px',
+                    height: isAndroidApp ? 'calc(var(--topbar-height) + 40px)' : 'var(--topbar-height)',
+                    borderBottom: '1px solid var(--border)'
+                  }}
                 >
                   <Link href="/dashboard" className="flex items-center select-none pt-2 pl-8">
                     <img
