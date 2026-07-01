@@ -82,9 +82,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   const handleInstallClick = async () => {
-    // If user is on a mobile device, download the pre-compiled APK directly
+    // If user is on a mobile device, download the pre-compiled APK directly from backend
     if (typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
-      window.location.href = '/app.apk';
+      window.location.href = `${getSocketUrl()}/app.apk`;
       return;
     }
 

@@ -5,6 +5,11 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Import Models
 import User from './models/User.js';
@@ -61,6 +66,11 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/events', eventRoutes);
+
+// Serve compiled Android app APK
+app.get('/app.apk', (req, res) => {
+  res.sendFile(path.join(__dirname, 'app.apk'));
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
