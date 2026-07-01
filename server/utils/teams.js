@@ -69,18 +69,48 @@ export const syncJobRoleTeams = async () => {
       }
     }
 
+    // 5.5. Create or update the special "Chief Administrator" team
+    const chiefAdminTitle = "Chief Administrator";
+    const chiefAdminNormalized = chiefAdminTitle.toLowerCase();
+    
+    let chiefAdminTeam = teamMap.get(chiefAdminNormalized);
+    if (chiefAdminTeam) {
+      chiefAdminTeam.members = globalAdmins;
+      chiefAdminTeam.admins = globalAdmins;
+      await chiefAdminTeam.save();
+    } else {
+      chiefAdminTeam = new Team({
+        name: encrypt(chiefAdminTitle),
+        description: encrypt("Secure communications channel for chief administrators, managers, and team leaders."),
+        members: globalAdmins,
+        admins: globalAdmins
+      });
+      await chiefAdminTeam.save();
+    }
+
     // 6. Ensure all users' teams array reference is updated to match the Team documents they belong to
     const allTeams = await Team.find({});
     for (const user of users) {
       const userJobTitle = user.jobTitle?.trim().toLowerCase();
-      if (!userJobTitle) continue;
       
       const matchingTeams = allTeams.filter(team => {
         try {
           const decryptedName = decrypt(team.name).trim().toLowerCase();
-          return decryptedName === userJobTitle;
+          
+          if (decryptedName === userJobTitle) return true;
+          
+          if (decryptedName === 'chief administrator' && globalAdmins.some(adminId => adminId.toString() === user._id.toString())) {
+            return true;
+          }
+          
+          return false;
         } catch (e) {
-          return team.name.trim().toLowerCase() === userJobTitle;
+          const nameLower = team.name.trim().toLowerCase();
+          if (nameLower === userJobTitle) return true;
+          if (nameLower === 'chief administrator' && globalAdmins.some(adminId => adminId.toString() === user._id.toString())) {
+            return true;
+          }
+          return false;
         }
       });
       
