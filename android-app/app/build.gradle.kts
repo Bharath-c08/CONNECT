@@ -81,4 +81,7 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+
+  // WorkManager
+  implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

@@ -131,6 +131,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return;
     }
 
+    // Sync auth token to Android Native interface if running in the wrapper
+    if (typeof window !== 'undefined' && (window as any).AndroidInterface) {
+      (window as any).AndroidInterface.saveAuthToken(token);
+    }
+
     const fetchedUser = getCurrentUser();
     if (fetchedUser) {
       setUser(fetchedUser);
@@ -273,6 +278,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleLogout = () => {
     removeAuthToken();
+    if (typeof window !== 'undefined' && (window as any).AndroidInterface) {
+      (window as any).AndroidInterface.clearAuthToken();
+    }
     router.push('/');
   };
 

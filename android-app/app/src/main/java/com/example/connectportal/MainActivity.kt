@@ -16,12 +16,47 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.webkit.JavascriptInterface
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
   private var webView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    // Request dynamic notification permission on Android 13+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+      }
+    }
+
+    // Schedule background WorkManager task for periodic notification polling
+    val constraints = Constraints.Builder()
+      .setRequiredNetworkType(NetworkType.CONNECTED)
+      .build()
+
+    val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(15, TimeUnit.MINUTES)
+      .setConstraints(constraints)
+      .build()
+
+    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+      "DotcoreNotificationWork",
+      ExistingPeriodicWorkPolicy.KEEP,
+      workRequest
+    )
 
     enableEdgeToEdge()
     setContent {
@@ -78,10 +113,31 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
         }
         
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+        addJavascriptInterface(AndroidInterface(context), "AndroidInterface")
         
         loadUrl(url)
         onWebViewCreated(this)
       }
     }
   )
+}
+
+class AndroidInterface(private val context: Context) {
+  @JavascriptInterface
+  fun saveAuthToken(token: String) {
+    val sharedPref = context.getSharedPreferences("DotcorePrefs", Context.MODE_PRIVATE)
+    with(sharedPref.edit()) {
+      putString("auth_token", token)
+      apply()
+    }
+  }
+
+  @JavascriptInterface
+  fun clearAuthToken() {
+    val sharedPref = context.getSharedPreferences("DotcorePrefs", Context.MODE_PRIVATE)
+    with(sharedPref.edit()) {
+      remove("auth_token")
+      apply()
+    }
+  }
 }
