@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       PortalWebView(
-        url = "https://dotcore.onrender.com",
+        url = "https://hrm.markdotintellect.com",
         onWebViewCreated = { webView = it }
       )
     }
