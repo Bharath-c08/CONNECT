@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import PWARegister from "../components/PWARegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
   title: "Markdot Dotcore | Team Management & Time Clock Hub",
   description: "Advanced Human Resource Management platform by Markdot Dotcore. Manage Clock In/Out, employee profiles, team communication, task boards, and leave requests in a single, high-performance dark space bento interface.",
   keywords: ["HRM", "Human Resource Management", "Markdot Dotcore", "Time Clock", "Shift Tracking", "Team Messaging", "Kanban Board", "Employee Directory"],
+  manifest: "/manifest.json",
   icons: {
     icon: "/images/favicon.ico",
   },
@@ -32,7 +34,16 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#ef4444" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body className="min-h-full flex flex-col">
+        <PWARegister />
+        {children}
+      </body>
     </html>
   );
 }

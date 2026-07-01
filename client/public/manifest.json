@@ -1,0 +1,22 @@
+{
+  "name": "CONNECT Portal",
+  "short_name": "CONNECT",
+  "description": "Progressive Web Portal for HR, Clock Telemetry, and Secure Communications.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#ef4444",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/Markdot logo black.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/Markdot logo white.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

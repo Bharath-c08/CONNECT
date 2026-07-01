@@ -23,7 +23,8 @@ import {
   Radio,
   FileText,
   Edit,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { playNotificationSound } from '../../utils/audio';
@@ -49,6 +50,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showNotifications, setShowNotifications] = useState(false);
   const [popupNotification, setPopupNotification] = useState<any>(null);
   const [globalSocket, setGlobalSocket] = useState<Socket | null>(null);
+
+  // PWA installation states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+
+    const handleAppInstalled = () => {
+      setShowInstallBtn(false);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User installation choice outcome: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBtn(false);
+  };
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
@@ -392,6 +427,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <Menu className="w-4 h-4 text-cyan-400" />
             </button>
+            {showInstallBtn && (
+              <button
+                onClick={handleInstallClick}
+                className="flex md:hidden items-center gap-1.5 px-2.5 py-1 rounded text-[9px] font-mono font-bold tracking-wider select-none border border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444] animate-pulse uppercase cursor-pointer"
+              >
+                <Download className="w-3 h-3 text-[#ef4444]" />
+                <span>INSTALL</span>
+              </button>
+            )}
             <h2 className="text-xs font-mono font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-primary)' }}>
               // CONSOLE_UPLINK: {navItems.find(item => item.href === pathname)?.name || 'DASHBOARD'}
             </h2>
@@ -571,6 +615,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     );
                   })}
                 </nav>
+                {showInstallBtn && (
+                  <div className="px-4 py-3 shrink-0 border-t" style={{ borderColor: 'var(--border)' }}>
+                    <button
+                      onClick={handleInstallClick}
+                      className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded text-[11px] font-bold text-white bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 transition-all shadow-md cursor-pointer border-0 uppercase font-mono"
+                      style={{ letterSpacing: '1px' }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>INSTALL WEB APP</span>
+                    </button>
+                  </div>
+                )}
                 {user && (
                   <div className="p-4 shrink-0 border-t" style={{ borderColor: 'var(--border)' }}>
                     <div className="flex items-center gap-3 mb-3">
