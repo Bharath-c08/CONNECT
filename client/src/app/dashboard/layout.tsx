@@ -438,15 +438,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <Menu className="w-4 h-4 text-cyan-400" />
             </button>
-            {showInstallBtn && (
-              <button
-                onClick={handleInstallClick}
-                className="flex md:hidden items-center gap-1.5 px-2.5 py-1 rounded text-[9px] font-mono font-bold tracking-wider select-none border border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444] animate-pulse uppercase cursor-pointer"
-              >
-                <Download className="w-3 h-3 text-[#ef4444]" />
-                <span>DOWNLOAD APP</span>
-              </button>
-            )}
             <h2 className="text-xs font-mono font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-primary)' }}>
               // CONSOLE_UPLINK: {navItems.find(item => item.href === pathname)?.name || 'DASHBOARD'}
             </h2>
@@ -605,7 +596,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <ChevronLeft className="w-4 h-4 text-cyan-400" />
                   </button>
                 </div>
-                <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1.5 select-none">
+                <nav className="flex-grow min-h-[250px] overflow-y-auto py-4 px-3 flex flex-col gap-1.5 select-none">
                   {navItems.filter(item => canSeeLink(item.role)).map((item) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;

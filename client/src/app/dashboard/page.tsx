@@ -16,11 +16,12 @@ import {
   AlertCircle,
   Binary,
   Radio,
-  Sliders
+  Sliders,
+  Download
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { apiRequest } from '../../utils/api';
+import { apiRequest, getSocketUrl } from '../../utils/api';
 import { motion } from 'framer-motion';
 
 const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
@@ -65,8 +66,49 @@ export default function DashboardPage() {
     otMinutesToday: 0
   });
   const [selectedShiftType, setSelectedShiftType] = useState<'regular' | 'overtime'>('regular');
+  const [showDownloadBanner, setShowDownloadBanner] = useState(false);
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
+
+  const LATEST_APP_VERSION = "1.0"; // Current production release version
+
+  const compareVersions = (v1: string, v2: string) => {
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+      const p1 = parts1[i] || 0;
+      const p2 = parts2[i] || 0;
+      if (p1 < p2) return -1;
+      if (p1 > p2) return 1;
+    }
+    return 0;
+  };
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+      const isNativeApp = navigator.userAgent.includes('CONNECT_Android_App');
+      
+      if (isMobile && !isNativeApp) {
+        setShowDownloadBanner(true);
+      } else if (isNativeApp) {
+        const match = navigator.userAgent.match(/CONNECT_Android_App\/([0-9\.]+)/);
+        if (match) {
+          const installedVersion = match[1];
+          setAppVersion(installedVersion);
+          if (compareVersions(installedVersion, LATEST_APP_VERSION) < 0) {
+            setShowUpdateBanner(true);
+          }
+        }
+      }
+    }
+  }, []);
+
+  const handleApkDownload = () => {
+    window.location.href = `${getSocketUrl()}/app.apk`;
+  };
 
   useEffect(() => {
     fetchDashboardData();
@@ -427,6 +469,83 @@ export default function DashboardPage() {
           >
             <span className="opacity-45 text-[10px]">OPERATOR_ID:</span>
             <span className="font-bold text-white tracking-widest">{user.employeeId}</span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Android APK Download Card/Banner */}
+      {showDownloadBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 rounded-lg border relative overflow-hidden font-mono shadow-lg select-none"
+          style={{
+            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%)',
+            borderColor: 'var(--info)'
+          }}
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">SYSTEM_UPLINK // CLIENT_INTEGRATION</div>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
+                <Download className="w-4 h-4 text-cyan-400" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  NATIVE MOBILE INTERFACE DETECTED
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                  Download the compiled native Android App wrapper (.APK) for status panel alerts.
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleApkDownload}
+              className="px-4 py-1.5 rounded text-[10px] font-bold text-white bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 transition-all cursor-pointer border-0 uppercase"
+            >
+              Get Android APK
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Android APK Update Alert */}
+      {showUpdateBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 rounded-lg border relative overflow-hidden font-mono shadow-lg select-none"
+          style={{
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(239, 68, 68, 0.15) 100%)',
+            borderColor: 'var(--warning)',
+            boxShadow: '0 0 20px rgba(245, 158, 11, 0.1)'
+          }}
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">SYSTEM_UPDATE // NATIVE_APPLICATION</div>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 animate-pulse">
+                <AlertCircle className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  NEW APP VERSION AVAILABLE (v{LATEST_APP_VERSION})
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                  You are running version {appVersion}. Update to the latest version to ensure all notifications and native functions work reliably.
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleApkDownload}
+              className="px-4 py-1.5 rounded text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-450 transition-all cursor-pointer border-0 uppercase"
+            >
+              Update App Now
+            </button>
           </div>
         </motion.div>
       )}

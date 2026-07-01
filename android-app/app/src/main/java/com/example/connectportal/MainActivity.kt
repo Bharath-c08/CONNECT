@@ -60,6 +60,12 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
           }
         }
 
+        val versionName = try {
+          context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        } catch (e: Exception) {
+          "1.0"
+        }
+
         settings.apply {
           javaScriptEnabled = true
           domStorageEnabled = true
@@ -67,6 +73,7 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
           loadWithOverviewMode = true
           useWideViewPort = true
           mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+          userAgentString = userAgentString + " CONNECT_Android_App/" + versionName
         }
         
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
