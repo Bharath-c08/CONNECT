@@ -51,8 +51,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/images/Markdot logo black.png',
-    badge: '/favicon.ico',
+    icon: self.location.origin + '/images/Markdot logo black.png',
+    badge: self.location.origin + '/favicon.ico',
     data: {
       url: data.url || '/dashboard'
     },

@@ -20,7 +20,7 @@ export default function PWARegister() {
 
     // 1. Register Service Worker
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      const registerSW = () => {
         navigator.serviceWorker.register('/sw.js')
           .then((reg) => {
             console.log('Service Worker registered successfully with scope:', reg.scope);
@@ -34,7 +34,13 @@ export default function PWARegister() {
           .catch((err) => {
             console.error('Service Worker registration failed:', err);
           });
-      });
+      };
+
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+      }
     }
 
     async function setupPushSubscription(registration: ServiceWorkerRegistration) {
@@ -55,6 +61,28 @@ export default function PWARegister() {
 
         // Check if already subscribed
         let subscription = await registration.pushManager.getSubscription();
+
+        if (subscription) {
+          // Verify VAPID public key matches
+          const currentKey = keyRes.publicKey;
+          const subscriptionKey = subscription.options.applicationServerKey;
+          
+          let keysMatch = false;
+          if (subscriptionKey) {
+            // Convert ArrayBuffer applicationServerKey to base64url for comparison
+            const subscriptionKeyBase64 = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(subscriptionKey))))
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            if (subscriptionKeyBase64 === currentKey) {
+              keysMatch = true;
+            }
+          }
+
+          if (!keysMatch) {
+            console.log('VAPID key mismatch detected. Unsubscribing old push subscription...');
+            await subscription.unsubscribe();
+            subscription = null;
+          }
+        }
 
         if (!subscription) {
           // Subscribe new device
