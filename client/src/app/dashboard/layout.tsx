@@ -70,6 +70,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
+    // Force show install/download button for all mobile users on load
+    if (typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
+      setShowInstallBtn(true);
+    }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
@@ -77,6 +82,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   const handleInstallClick = async () => {
+    // If user is on a mobile device, download the pre-compiled APK directly
+    if (typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
+      window.location.href = '/app.apk';
+      return;
+    }
+
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
@@ -433,7 +444,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="flex md:hidden items-center gap-1.5 px-2.5 py-1 rounded text-[9px] font-mono font-bold tracking-wider select-none border border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444] animate-pulse uppercase cursor-pointer"
               >
                 <Download className="w-3 h-3 text-[#ef4444]" />
-                <span>INSTALL</span>
+                <span>DOWNLOAD APP</span>
               </button>
             )}
             <h2 className="text-xs font-mono font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-primary)' }}>
@@ -623,7 +634,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       style={{ letterSpacing: '1px' }}
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>INSTALL WEB APP</span>
+                      <span>DOWNLOAD ANDROID APP</span>
                     </button>
                   </div>
                 )}
