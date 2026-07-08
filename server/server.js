@@ -367,7 +367,7 @@ io.on('connection', (socket) => {
   });
 
   // WebRTC Signaling Events
-  socket.on('call-user', (data) => {
+  socket.on('call-user', async (data) => {
     // data = { userToCall, signalData, from, name, type }
     io.to(data.userToCall).emit('incoming-call', { 
       signal: data.signalData, 
@@ -375,18 +375,61 @@ io.on('connection', (socket) => {
       name: data.name,
       type: data.type || 'video'
     });
+
+    // Create a call notification in database so background sync/polling picks it up
+    try {
+      // Clean up any stale call notifications for this recipient first
+      await Notification.deleteMany({ recipientId: data.userToCall, type: 'call' });
+
+      const notif = new Notification({
+        recipientId: data.userToCall,
+        type: 'call',
+        title: 'Incoming Call',
+        message: `${data.name} is calling you...`,
+        link: `/dashboard/chat?callFrom=${data.from}&callType=${data.type || 'video'}`
+      });
+      await notif.save();
+      io.to(data.userToCall).emit('new-notification', notif);
+    } catch (err) {
+      console.error('Error saving call notification:', err);
+    }
   });
 
-  socket.on('answer-call', (data) => {
+  socket.on('answer-call', async (data) => {
     io.to(data.to).emit('call-accepted', data.signal);
+
+    // Remove call notification on answer
+    try {
+      await Notification.deleteMany({ recipientId: socket.userId || data.to, type: 'call' });
+    } catch (err) {
+      console.error(err);
+    }
   });
 
-  socket.on('end-call', (data) => {
+  socket.on('end-call', async (data) => {
     io.to(data.to).emit('call-ended');
+
+    // Remove call notifications
+    try {
+      await Notification.deleteMany({ recipientId: data.to, type: 'call' });
+      if (socket.userId) {
+        await Notification.deleteMany({ recipientId: socket.userId, type: 'call' });
+      }
+    } catch (err) {
+      console.error(err);
+    }
   });
 
-  socket.on('reject-call', (data) => {
+  socket.on('reject-call', async (data) => {
     io.to(data.to).emit('call-rejected');
+
+    // Remove call notifications
+    try {
+      await Notification.deleteMany({ recipientId: socket.userId || data.to, type: 'call' });
+      await Notification.deleteMany({ recipientId: data.to, type: 'call' });
+    } catch (err) {
+      console.error(err);
+    }
   });
 
   socket.on('ice-candidate', (data) => {

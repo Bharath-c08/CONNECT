@@ -69,18 +69,28 @@ class MainActivity : ComponentActivity() {
 fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
   val context = LocalContext.current
 
-  // Register permission launcher for notification permission on Android 13+
+  // Register permission launcher for dynamic notifications, camera, and microphone permissions
   val permissionLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.RequestPermission()
-  ) { isGranted ->
-    // Permission status handled
+    contract = ActivityResultContracts.RequestMultiplePermissions()
+  ) { permissions ->
+    // Permissions statuses handled
   }
 
   LaunchedEffect(Unit) {
+    val list = mutableListOf<String>()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        list.add(Manifest.permission.POST_NOTIFICATIONS)
       }
+    }
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+      list.add(Manifest.permission.CAMERA)
+    }
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+      list.add(Manifest.permission.RECORD_AUDIO)
+    }
+    if (list.isNotEmpty()) {
+      permissionLauncher.launch(list.toTypedArray())
     }
   }
 
@@ -115,6 +125,7 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
           useWideViewPort = true
           mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
           userAgentString = userAgentString + " CONNECT_Android_App/" + versionName
+          mediaPlaybackRequiresUserGesture = false
         }
         
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
