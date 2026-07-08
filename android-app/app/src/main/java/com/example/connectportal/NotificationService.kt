@@ -127,7 +127,36 @@ class NotificationService : Service() {
                                     if (type == "call") {
                                         activeCallNotifId = id
                                         activeCallSystemId = System.currentTimeMillis().toInt()
-                                        showCallNotification(activeCallSystemId!!, title, message, id)
+                                        
+                                        var callerId = ""
+                                        var callType = "video"
+                                        val link = notif.optString("link", "")
+                                        if (link.contains("callFrom=")) {
+                                            try {
+                                                val query = link.split("?")[1]
+                                                val params = query.split("&")
+                                                for (param in params) {
+                                                    if (param.startsWith("callFrom=")) {
+                                                        callerId = param.split("=")[1]
+                                                    } else if (param.startsWith("callType=")) {
+                                                        callType = param.split("=")[1]
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                        val signalData = notif.optString("signalData", "")
+                                        
+                                        showCallNotification(
+                                            activeCallSystemId!!,
+                                            title,
+                                            message,
+                                            id,
+                                            callerId,
+                                            callType,
+                                            signalData
+                                        )
                                     } else {
                                         showNewNotification(id.hashCode(), title, message)
                                     }
@@ -191,7 +220,15 @@ class NotificationService : Service() {
         notificationManager.notify(notificationId, notification)
     }
 
-    private fun showCallNotification(notificationId: Int, title: String, message: String, notifId: String) {
+    private fun showCallNotification(
+        notificationId: Int, 
+        title: String, 
+        message: String, 
+        notifId: String,
+        callerId: String,
+        callType: String,
+        signalData: String
+    ) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "dotcore_call_notifications"
 
@@ -208,10 +245,16 @@ class NotificationService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
 
+        val cleanCallerName = message.replace(" is calling you...", "")
+
         // Action when clicking the notification body: bring app to foreground
         val contentIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             action = "OPEN_CALL_SCREEN"
+            putExtra("callerId", callerId)
+            putExtra("callType", callType)
+            putExtra("callerName", cleanCallerName)
+            putExtra("signalData", signalData)
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this, 100, contentIntent,
@@ -222,6 +265,10 @@ class NotificationService : Service() {
         val acceptIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             action = "ACCEPT_CALL"
+            putExtra("callerId", callerId)
+            putExtra("callType", callType)
+            putExtra("callerName", cleanCallerName)
+            putExtra("signalData", signalData)
         }
         val acceptPendingIntent = PendingIntent.getActivity(
             this, 101, acceptIntent,

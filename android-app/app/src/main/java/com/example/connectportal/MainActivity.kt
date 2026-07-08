@@ -66,10 +66,29 @@ class MainActivity : ComponentActivity() {
 
   private fun handleCallIntent(intent: Intent?) {
     val action = intent?.action
-    if (action == "ACCEPT_CALL") {
+    val callerId = intent?.getStringExtra("callerId")
+    val callType = intent?.getStringExtra("callType")
+    val callerName = intent?.getStringExtra("callerName")
+    val signalData = intent?.getStringExtra("signalData")
+
+    if (callerId != null) {
+      val isAccept = if (action == "ACCEPT_CALL") "true" else "false"
+      val safeName = callerName?.replace("'", "\\'") ?: "Operator"
+      val safeSignal = signalData?.replace("'", "\\'") ?: ""
+
       webView?.postDelayed({
-        webView?.evaluateJavascript("window.dispatchEvent(new CustomEvent('external-accept-call'))", null)
-      }, 500)
+        val jsCode = """
+          window.pendingCall = {
+            from: '$callerId',
+            type: '$callType',
+            name: '$safeName',
+            signal: '$safeSignal',
+            accept: $isAccept
+          };
+          window.dispatchEvent(new CustomEvent('external-incoming-call'));
+        """.trimIndent().replace("\n", " ")
+        webView?.evaluateJavascript(jsCode, null)
+      }, 1000)
     }
   }
 

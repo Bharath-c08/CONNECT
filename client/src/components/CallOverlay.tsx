@@ -221,25 +221,25 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
     return pc;
   };
 
-  const answerCall = async () => {
+  const answerCallWithParams = async (from: string, type: 'audio' | 'video', signal: any) => {
     stopRinging();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(getMediaOptions(callData.type));
+      const stream = await navigator.mediaDevices.getUserMedia(getMediaOptions(type));
       setLocalStream(stream);
 
-      const pc = createPeerConnection(callData.from);
+      const pc = createPeerConnection(from);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      if (callData.signal) {
-        await pc.setRemoteDescription(new RTCSessionDescription(callData.signal));
+      if (signal) {
+        await pc.setRemoteDescription(new RTCSessionDescription(signal));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
-        socket?.emit('answer-call', { to: callData.from, signal: answer });
+        socket?.emit('answer-call', { to: from, signal: answer });
         setCallState('connected');
       }
     } catch (err: any) {
-      console.error('Error answering call.', err);
+      console.error('Error answering call with params.', err);
       endCall(true);
       if (err.name === 'NotFoundError') {
         alert('Could not find a camera or microphone. Cannot answer call.');
@@ -249,18 +249,57 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
     }
   };
 
+  const answerCall = async () => {
+    if (callData) {
+      await answerCallWithParams(callData.from, callData.type, callData.signal);
+    }
+  };
+
   useEffect(() => {
-    const handleExternalAccept = () => {
-      if (callState === 'receiving') {
-        answerCall();
+    const checkPendingCall = () => {
+      const pending = (window as any).pendingCall;
+      if (pending) {
+        (window as any).pendingCall = null;
+        let parsedSignal = null;
+        if (pending.signal) {
+          try {
+            parsedSignal = JSON.parse(pending.signal);
+          } catch (e) {
+            console.error('Error parsing pending signalData', e);
+          }
+        }
+
+        if (!pending.accept) {
+          startRinging();
+        }
+
+        setCallData({
+          from: pending.from,
+          name: pending.name,
+          type: pending.type,
+          signal: parsedSignal
+        });
+        setCallState('receiving');
+
+        if (pending.accept) {
+          setTimeout(() => {
+            answerCallWithParams(pending.from, pending.type, parsedSignal);
+          }, 300);
+        }
       }
     };
 
-    window.addEventListener('external-accept-call', handleExternalAccept);
-    return () => {
-      window.removeEventListener('external-accept-call', handleExternalAccept);
+    checkPendingCall();
+
+    const handleExternalIncoming = () => {
+      checkPendingCall();
     };
-  }, [callState, callData, answerCall]);
+
+    window.addEventListener('external-incoming-call', handleExternalIncoming);
+    return () => {
+      window.removeEventListener('external-incoming-call', handleExternalIncoming);
+    };
+  }, [callState]);
 
   const rejectCall = () => {
     socket?.emit('reject-call', { to: callData.from });

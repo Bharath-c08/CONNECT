@@ -386,7 +386,8 @@ io.on('connection', (socket) => {
         type: 'call',
         title: 'Incoming Call',
         message: `${data.name} is calling you...`,
-        link: `/dashboard/chat?callFrom=${data.from}&callType=${data.type || 'video'}`
+        link: `/dashboard/chat?callFrom=${data.from}&callType=${data.type || 'video'}`,
+        signalData: JSON.stringify(data.signalData)
       });
       await notif.save();
       io.to(data.userToCall).emit('new-notification', notif);
