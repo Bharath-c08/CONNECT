@@ -249,6 +249,19 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
     }
   };
 
+  useEffect(() => {
+    const handleExternalAccept = () => {
+      if (callState === 'receiving') {
+        answerCall();
+      }
+    };
+
+    window.addEventListener('external-accept-call', handleExternalAccept);
+    return () => {
+      window.removeEventListener('external-accept-call', handleExternalAccept);
+    };
+  }, [callState, callData, answerCall]);
+
   const rejectCall = () => {
     socket?.emit('reject-call', { to: callData.from });
     endCall(false);
@@ -602,7 +615,7 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
           </div>
 
           {/* Controls Bar */}
-          <div className="h-24 bg-gradient-to-t from-black/90 to-black/0 absolute bottom-0 left-0 right-0 flex items-center justify-center gap-6 pb-4 z-10">
+          <div className="h-20 bg-zinc-900 border-t border-zinc-800/50 flex items-center justify-center gap-6 z-10 w-full shrink-0">
             {/* Record toggle */}
             <button
               onClick={isRecording ? stopRecording : startRecording}

@@ -35,6 +35,11 @@
             android:exported="false"
             android:stopWithTask="false"
             android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".CallActionReceiver"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
 </manifest>

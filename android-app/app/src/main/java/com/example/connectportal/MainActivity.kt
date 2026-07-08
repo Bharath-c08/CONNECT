@@ -50,8 +50,26 @@ class MainActivity : ComponentActivity() {
     setContent {
       PortalWebView(
         url = "https://hrm.markdotintellect.com",
-        onWebViewCreated = { webView = it }
+        onWebViewCreated = { 
+          webView = it
+          handleCallIntent(intent)
+        }
       )
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleCallIntent(intent)
+  }
+
+  private fun handleCallIntent(intent: Intent?) {
+    val action = intent?.action
+    if (action == "ACCEPT_CALL") {
+      webView?.postDelayed({
+        webView?.evaluateJavascript("window.dispatchEvent(new CustomEvent('external-accept-call'))", null)
+      }, 500)
     }
   }
 

@@ -93,4 +93,39 @@ router.post('/push/subscribe', async (req, res) => {
   }
 });
 
+// Reject call from background
+router.post('/reject-call', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const callNotif = await Notification.findOne({ recipientId: userId, type: 'call' });
+    if (callNotif) {
+      const urlPart = callNotif.link.split('?')[1];
+      if (urlPart) {
+        const parts = urlPart.split('&');
+        let callerId = null;
+        for (const part of parts) {
+          if (part.startsWith('callFrom=')) {
+            callerId = part.split('=')[1];
+            break;
+          }
+        }
+        
+        if (callerId) {
+          const io = req.app.get('io');
+          if (io) {
+            io.to(callerId).emit('call-rejected');
+          }
+        }
+      }
+      
+      // Delete the call notification
+      await Notification.deleteMany({ recipientId: userId, type: 'call' });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

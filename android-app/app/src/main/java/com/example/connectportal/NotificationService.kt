@@ -14,6 +14,10 @@ import kotlinx.coroutines.*
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.ExistingWorkPolicy
+import java.util.concurrent.TimeUnit
 
 class NotificationService : Service() {
 
@@ -123,7 +127,7 @@ class NotificationService : Service() {
                                     if (type == "call") {
                                         activeCallNotifId = id
                                         activeCallSystemId = System.currentTimeMillis().toInt()
-                                        showCallNotification(activeCallSystemId!!, title, message)
+                                        showCallNotification(activeCallSystemId!!, title, message, id)
                                     } else {
                                         showNewNotification(id.hashCode(), title, message)
                                     }
@@ -187,7 +191,7 @@ class NotificationService : Service() {
         notificationManager.notify(notificationId, notification)
     }
 
-    private fun showCallNotification(notificationId: Int, title: String, message: String) {
+    private fun showCallNotification(notificationId: Int, title: String, message: String, notifId: String) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "dotcore_call_notifications"
 
@@ -204,12 +208,35 @@ class NotificationService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
 
-        val intent = Intent(this, MainActivity::class.java).apply {
+        // Action when clicking the notification body: bring app to foreground
+        val contentIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            action = "OPEN_CALL_SCREEN"
         }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+        val contentPendingIntent = PendingIntent.getActivity(
+            this, 100, contentIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Action when clicking the "ACCEPT" button: launch app with accept parameter
+        val acceptIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            action = "ACCEPT_CALL"
+        }
+        val acceptPendingIntent = PendingIntent.getActivity(
+            this, 101, acceptIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Action when clicking the "DECLINE" button: execute decline API call in CallActionReceiver
+        val declineIntent = Intent(this, CallActionReceiver::class.java).apply {
+            action = "DECLINE_CALL"
+            putExtra("notificationId", notificationId)
+            putExtra("notifId", notifId)
+        }
+        val declinePendingIntent = PendingIntent.getBroadcast(
+            this, 102, declineIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
 
         val notification = NotificationCompat.Builder(this, channelId)
@@ -218,9 +245,11 @@ class NotificationService : Service() {
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(contentPendingIntent)
             .setOngoing(true) // keeps the notification visible and non-dismissible
             .setAutoCancel(true)
+            .addAction(R.mipmap.ic_launcher, "DECLINE", declinePendingIntent)
+            .addAction(R.mipmap.ic_launcher, "ACCEPT", acceptPendingIntent)
             .build()
 
         notificationManager.notify(notificationId, notification)
@@ -232,29 +261,13 @@ class NotificationService : Service() {
         
         // Only resurrect the service if the user remains logged in
         if (token != null) {
-            val restartServiceIntent = Intent(applicationContext, this.javaClass).apply {
-                setPackage(packageName)
-            }
-            val restartServicePendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                PendingIntent.getForegroundService(
-                    applicationContext,
-                    1,
-                    restartServiceIntent,
-                    PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
-                )
-            } else {
-                PendingIntent.getService(
-                    applicationContext,
-                    1,
-                    restartServiceIntent,
-                    PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
-                )
-            }
-            val alarmService = applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmService.set(
-                AlarmManager.RTC,
-                System.currentTimeMillis() + 1000,
-                restartServicePendingIntent
+            val resurrectRequest = OneTimeWorkRequestBuilder<NotificationResurrectorWorker>()
+                .setInitialDelay(1, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+                "NotificationResurrectWork",
+                ExistingWorkPolicy.REPLACE,
+                resurrectRequest
             )
         }
         super.onTaskRemoved(rootIntent)
