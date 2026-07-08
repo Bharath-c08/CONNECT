@@ -28,6 +28,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
 import java.util.concurrent.TimeUnit
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
@@ -40,18 +42,18 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Schedule background WorkManager task for periodic notification polling
+    // Schedule background WorkManager task for notification polling (real-time loop)
     val constraints = Constraints.Builder()
       .setRequiredNetworkType(NetworkType.CONNECTED)
       .build()
 
-    val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(15, TimeUnit.MINUTES)
+    val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
       .setConstraints(constraints)
       .build()
 
-    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+    WorkManager.getInstance(this).enqueueUniqueWork(
       "DotcoreNotificationWork",
-      ExistingPeriodicWorkPolicy.KEEP,
+      ExistingWorkPolicy.KEEP,
       workRequest
     )
 
@@ -144,6 +146,19 @@ class AndroidInterface(private val context: Context) {
       putString("auth_token", token)
       apply()
     }
+
+    // Immediately trigger notification polling on login
+    val constraints = Constraints.Builder()
+      .setRequiredNetworkType(NetworkType.CONNECTED)
+      .build()
+    val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
+      .setConstraints(constraints)
+      .build()
+    WorkManager.getInstance(context).enqueueUniqueWork(
+      "DotcoreNotificationWork",
+      ExistingWorkPolicy.REPLACE,
+      workRequest
+    )
   }
 
   @JavascriptInterface
@@ -153,5 +168,7 @@ class AndroidInterface(private val context: Context) {
       remove("auth_token")
       apply()
     }
+    // Cancel the notification worker loop on logout
+    WorkManager.getInstance(context).cancelUniqueWork("DotcoreNotificationWork")
   }
 }

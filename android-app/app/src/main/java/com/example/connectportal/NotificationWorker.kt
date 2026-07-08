@@ -9,6 +9,12 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.ExistingWorkPolicy
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import java.util.concurrent.TimeUnit
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
@@ -17,7 +23,12 @@ class NotificationWorker(context: Context, params: WorkerParameters) : Coroutine
 
     override suspend fun doWork(): Result {
         val sharedPref = applicationContext.getSharedPreferences("DotcorePrefs", Context.MODE_PRIVATE)
-        val token = sharedPref.getString("auth_token", null) ?: return Result.success()
+        val token = sharedPref.getString("auth_token", null)
+        
+        // If there's no auth token, stop the polling loop
+        if (token == null) {
+            return Result.success()
+        }
 
         try {
             // Fetch notifications from the backend
@@ -53,9 +64,29 @@ class NotificationWorker(context: Context, params: WorkerParameters) : Coroutine
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            // Loop: Schedule the next polling check in 10 seconds
+            scheduleNextPoll(applicationContext)
         }
 
         return Result.success()
+    }
+
+    private fun scheduleNextPoll(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val nextWorkRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
+            .setInitialDelay(10, TimeUnit.SECONDS)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "DotcoreNotificationWork",
+            ExistingWorkPolicy.REPLACE,
+            nextWorkRequest
+        )
     }
 
     private fun showNotification(title: String, message: String) {
