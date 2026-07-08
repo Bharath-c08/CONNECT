@@ -18,19 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.webkit.JavascriptInterface
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.ExistingWorkPolicy
-import java.util.concurrent.TimeUnit
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,20 +35,16 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Schedule background WorkManager task for notification polling (real-time loop)
-    val constraints = Constraints.Builder()
-      .setRequiredNetworkType(NetworkType.CONNECTED)
-      .build()
-
-    val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
-      .setConstraints(constraints)
-      .build()
-
-    WorkManager.getInstance(this).enqueueUniqueWork(
-      "DotcoreNotificationWork",
-      ExistingWorkPolicy.KEEP,
-      workRequest
-    )
+    // Start background notification service if already logged in
+    val sharedPref = getSharedPreferences("DotcorePrefs", Context.MODE_PRIVATE)
+    if (sharedPref.getString("auth_token", null) != null) {
+      val serviceIntent = Intent(this, NotificationService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(serviceIntent)
+      } else {
+        startService(serviceIntent)
+      }
+    }
 
     enableEdgeToEdge()
     setContent {
@@ -147,18 +136,13 @@ class AndroidInterface(private val context: Context) {
       apply()
     }
 
-    // Immediately trigger notification polling on login
-    val constraints = Constraints.Builder()
-      .setRequiredNetworkType(NetworkType.CONNECTED)
-      .build()
-    val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
-      .setConstraints(constraints)
-      .build()
-    WorkManager.getInstance(context).enqueueUniqueWork(
-      "DotcoreNotificationWork",
-      ExistingWorkPolicy.REPLACE,
-      workRequest
-    )
+    // Start background notification service immediately on login
+    val serviceIntent = Intent(context, NotificationService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      context.startForegroundService(serviceIntent)
+    } else {
+      context.startService(serviceIntent)
+    }
   }
 
   @JavascriptInterface
@@ -168,7 +152,8 @@ class AndroidInterface(private val context: Context) {
       remove("auth_token")
       apply()
     }
-    // Cancel the notification worker loop on logout
-    WorkManager.getInstance(context).cancelUniqueWork("DotcoreNotificationWork")
+    // Stop background notification service on logout
+    val serviceIntent = Intent(context, NotificationService::class.java)
+    context.stopService(serviceIntent)
   }
 }
