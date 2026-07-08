@@ -2,6 +2,7 @@ package com.example.connectportal
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -223,6 +224,40 @@ class NotificationService : Service() {
             .build()
 
         notificationManager.notify(notificationId, notification)
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val sharedPref = getSharedPreferences("DotcorePrefs", Context.MODE_PRIVATE)
+        val token = sharedPref.getString("auth_token", null)
+        
+        // Only resurrect the service if the user remains logged in
+        if (token != null) {
+            val restartServiceIntent = Intent(applicationContext, this.javaClass).apply {
+                setPackage(packageName)
+            }
+            val restartServicePendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                PendingIntent.getForegroundService(
+                    applicationContext,
+                    1,
+                    restartServiceIntent,
+                    PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+                )
+            } else {
+                PendingIntent.getService(
+                    applicationContext,
+                    1,
+                    restartServiceIntent,
+                    PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+                )
+            }
+            val alarmService = applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmService.set(
+                AlarmManager.RTC,
+                System.currentTimeMillis() + 1000,
+                restartServicePendingIntent
+            )
+        }
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {

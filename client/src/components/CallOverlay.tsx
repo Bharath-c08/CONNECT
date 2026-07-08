@@ -499,11 +499,11 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
   if (callState === 'idle') return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 text-white" style={{ background: 'rgba(9,9,11,0.9)', backdropFilter: 'blur(12px)' }}>
       {/* Calling / Receiving Modals */}
       {(callState === 'calling' || callState === 'receiving') && (
-        <div className="modal-box w-full max-w-sm text-center p-8 anim-fade-up">
-          <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center text-rose-500 animate-pulse">
+        <div className="w-full max-w-sm text-center p-8 rounded-3xl border border-zinc-800 bg-zinc-950 text-white shadow-2xl scale-100 transform transition-all duration-300">
+          <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 animate-pulse">
             <UserIcon className="w-10 h-10" />
           </div>
           <h3 className="text-xl font-bold mb-1">{callData?.name}</h3>
@@ -511,7 +511,7 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
             {callState === 'calling' ? `Calling...` : `Incoming ${callData?.type} call...`}
           </p>
           
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-6">
             <button onClick={() => callState === 'calling' ? endCall(true) : rejectCall()} className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center text-white shadow-lg transition-transform hover:scale-105">
               <PhoneOff className="w-6 h-6" />
             </button>
@@ -524,9 +524,9 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
         </div>
       )}
 
-      {/* Connected Video UI */}
+      {/* Connected Call UI */}
       {callState === 'connected' && (
-        <div className="w-full h-full max-w-6xl max-h-[90vh] flex flex-col bg-black rounded-3xl overflow-hidden shadow-2xl relative border border-white/10 anim-fade-up">
+        <div className="w-full h-full max-w-6xl max-h-[90vh] flex flex-col bg-zinc-950 rounded-3xl overflow-hidden shadow-2xl relative border border-zinc-800 anim-fade-up">
           {/* Top Bar */}
           <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-center text-white">
             <div className="flex items-center gap-3">
@@ -549,29 +549,54 @@ export default function CallOverlay({ socket, currentUser }: CallOverlayProps) {
             )}
           </div>
 
-          {/* Video Layout */}
-          <div className="flex-1 relative bg-black/50">
-            {/* Remote Video (Full Screen) */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black">
-              {remoteStream ? (
-                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-white/30 flex flex-col items-center">
-                  <UserIcon className="w-24 h-24 mb-4 opacity-50" />
-                  <p>Waiting for remote media...</p>
+          {/* Central content area */}
+          <div className="flex-1 relative bg-black/50 flex items-center justify-center">
+            {callData?.type === 'video' ? (
+              <>
+                {/* Remote Video (Full Screen) */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black">
+                  {remoteStream ? (
+                    <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-white/30 flex flex-col items-center">
+                      <UserIcon className="w-24 h-24 mb-4 opacity-50" />
+                      <p>Waiting for remote media...</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Local Video (PiP) */}
-            {callData?.type === 'video' && (
-              <div className="absolute bottom-24 right-6 w-48 aspect-[3/4] bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 transition-all hover:scale-105 z-20">
-                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover mirror" />
-                {isVideoOff && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/90 text-white/50 backdrop-blur-sm">
-                    <VideoOff className="w-8 h-8" />
-                  </div>
+                {/* Local Video (PiP) */}
+                <div className="absolute bottom-24 right-6 w-48 aspect-[3/4] bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 transition-all hover:scale-105 z-20">
+                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover mirror" />
+                  {isVideoOff && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/90 text-white/50 backdrop-blur-sm">
+                      <VideoOff className="w-8 h-8" />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Audio Call Visual Representation */
+              <div className="flex flex-col items-center justify-center text-center p-8">
+                {/* Hidden video element to play the remote audio track */}
+                {remoteStream && (
+                  <video ref={remoteVideoRef} autoPlay playsInline className="hidden" />
                 )}
+                
+                {/* Pulsing Glowing Avatar Card */}
+                <div className="relative w-36 h-36 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-6">
+                  {/* Outer breathing rings */}
+                  <div className="absolute inset-0 rounded-full border border-emerald-500/30 animate-ping opacity-75"></div>
+                  <div className="w-28 h-28 rounded-full bg-zinc-900 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 text-4xl font-extrabold shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+                    {(callData?.name?.[0] || 'R').toUpperCase()}
+                  </div>
+                </div>
+
+                <h2 className="text-2xl font-bold text-white mb-2">{callData?.name}</h2>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Encrypted Voice Link Active
+                </div>
               </div>
             )}
           </div>
