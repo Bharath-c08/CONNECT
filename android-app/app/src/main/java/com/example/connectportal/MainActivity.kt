@@ -29,19 +29,16 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 class MainActivity : ComponentActivity() {
   private var webView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-
-    // Request dynamic notification permission on Android 13+
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
-      }
-    }
 
     // Schedule background WorkManager task for periodic notification polling
     val constraints = Constraints.Builder()
@@ -79,10 +76,27 @@ class MainActivity : ComponentActivity() {
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
+  val context = LocalContext.current
+
+  // Register permission launcher for notification permission on Android 13+
+  val permissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted ->
+    // Permission status handled
+  }
+
+  LaunchedEffect(Unit) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+      }
+    }
+  }
+
   AndroidView(
     modifier = Modifier.fillMaxSize().statusBarsPadding(),
-    factory = { context ->
-      WebView(context).apply {
+    factory = { ctx ->
+      WebView(ctx).apply {
         webViewClient = object : WebViewClient() {
           override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
             url?.let { view?.loadUrl(it) }
@@ -97,7 +111,7 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
         }
 
         val versionName = try {
-          context.packageManager.getPackageInfo(context.packageName, 0).versionName
+          ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
         } catch (e: Exception) {
           "1.0"
         }
@@ -113,7 +127,7 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
         }
         
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-        addJavascriptInterface(AndroidInterface(context), "AndroidInterface")
+        addJavascriptInterface(AndroidInterface(ctx), "AndroidInterface")
         
         loadUrl(url)
         onWebViewCreated(this)
