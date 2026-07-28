@@ -179,14 +179,74 @@ export interface PayslipData {
   otHours: number;
 }
 
-export async function generatePayslipPDF(data: PayslipData): Promise<void> {
+export async function generatePayslipPDF(data: PayslipData, elementId?: string): Promise<void> {
   const jsPDFModule = await import('jspdf');
-  const autoTableModule = await import('jspdf-autotable');
-
   const jsPDF = jsPDFModule.default;
+
+  const month = data.period.month.toLowerCase().replace(' ', '_');
+  const filename = `payslip_${data.employee.employeeId}_${month}_${data.period.year}.pdf`;
+
+  // Render via high-density 300DPI html2canvas rasterization to lock document text against 3rd party editors (Foxit, Acrobat Pro, Nitro)
+  const targetId = elementId || 'payslip-preview-card';
+  const element = typeof document !== 'undefined' ? document.getElementById(targetId) : null;
+
+  if (element) {
+    try {
+      const html2canvasModule = await import('html2canvas');
+      const html2canvas = html2canvasModule.default;
+
+      const canvas = await html2canvas(element, {
+        scale: 3, // 300+ DPI razor-sharp print quality
+        useCORS: true,
+        backgroundColor: '#0e0e14',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      // Non-editable security metadata
+      doc.setProperties({
+        title: `Payslip_${data.employee.employeeId}_${data.period.month}_${data.period.year}`,
+        subject: 'Official Employee Payslip - Flattened Secured Read-Only Document',
+        author: 'MARKDOT INTELLECT HRMS',
+        keywords: 'payslip, read-only, non-editable, secured',
+        creator: 'MARKDOT INTELLECT HRMS (Secured Read-Only PDF)',
+      });
+
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const marginX = 10;
+      const imgWidth = pdfWidth - marginX * 2;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const marginY = Math.max(10, (pdfHeight - imgHeight) / 3);
+
+      // Dark background container page styling
+      doc.setFillColor(14, 14, 20);
+      doc.rect(0, 0, pdfWidth, pdfHeight, 'F');
+
+      doc.addImage(imgData, 'PNG', marginX, marginY, imgWidth, imgHeight, undefined, 'FAST');
+      doc.save(filename);
+      return;
+    } catch (err) {
+      console.warn('Canvas PDF export fallback to vector layout:', err);
+    }
+  }
+
+  const autoTableModule = await import('jspdf-autotable');
   const autoTable = autoTableModule.default;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  // Set PDF security & document properties (non-editable read-only format)
+  doc.setProperties({
+    title: `Payslip_${data.employee.employeeId}_${data.period.month}_${data.period.year}`,
+    subject: 'Official Employee Payslip - Read Only',
+    author: 'MARKDOT INTELLECT HRMS',
+    keywords: 'payslip, read-only, confidential',
+    creator: 'MARKDOT INTELLECT HRMS (Secured Read-Only PDF)',
+  });
+
   const W = 210; // A4 width
   let y = 0;
 
@@ -197,22 +257,22 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.setFillColor(239, 68, 68);
   doc.rect(0, 38, W, 0.8, 'F');
 
-  // Logo
+  // Logo (Original size 1068x199 ratio = 5.3668, un-stretched dimensions)
   const logoBase64 = await loadLogoBase64('/images/Markdot logo white.png');
   if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 7, 44, 20, undefined, 'FAST');
+    doc.addImage(logoBase64, 'PNG', 14, 12, 53.67, 10, undefined, 'FAST');
   }
 
   // Company name & address right side
   doc.setTextColor(226, 232, 240);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('MARKDOT DOTCORE', W - 14, 13, { align: 'right' });
+  doc.text('MARKDOT INTELLECT', W - 14, 13, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   doc.text('Human Resource Management System', W - 14, 19, { align: 'right' });
-  doc.text('support@markdotdotcore.com', W - 14, 25, { align: 'right' });
+  doc.text('contact@markdotintellect.com', W - 14, 25, { align: 'right' });
 
   // PAYSLIP title centered
   doc.setTextColor(239, 68, 68);
@@ -238,11 +298,11 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.setFont('helvetica', 'bold');
   doc.text('EMPLOYEE DETAILS', 18, y + 7);
 
-  // Left column
-  const col1x = 18;
-  const col2x = 90;
-  const col3x = 150;
-  let ey = y + 14;
+  // Clean 2-column key-value alignment (prevent overlapping text)
+  const col1LabelX = 18;
+  const col1ValX   = 44;
+  const col2LabelX = 108;
+  const col2ValX   = 144;
 
   const infoItems = [
     ['Name', data.employee.fullName],
@@ -253,18 +313,19 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   const infoRight = [
     ['Email', data.employee.email],
     ['Date of Joining', data.employee.joiningDate],
-    ['Basic Pay (Monthly)', `₹ ${data.employee.basicPay.toLocaleString()}`],
+    ['Basic Pay (Monthly)', `Rs. ${data.employee.basicPay.toLocaleString()}`],
     ['Working Days', String(data.workingDays)],
   ];
 
+  let ey = y + 14;
   infoItems.forEach(([label, value]) => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(7);
-    doc.text(label + ':', col1x, ey);
+    doc.text(label + ':', col1LabelX, ey);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(226, 232, 240);
-    doc.text(value, col2x - 4, ey);
+    doc.text(String(value), col1ValX, ey);
     ey += 6;
   });
 
@@ -273,10 +334,10 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(7);
-    doc.text(label + ':', col2x + 2, ey);
+    doc.text(label + ':', col2LabelX, ey);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(226, 232, 240);
-    doc.text(value, col3x + 10, ey);
+    doc.text(String(value), col2ValX, ey);
     ey += 6;
   });
 
@@ -286,8 +347,8 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   const summaryItems = [
     { label: 'Total Hours',   value: `${data.totalHours.toFixed(2)} hrs` },
     { label: 'OT Hours',      value: `${data.otHours.toFixed(2)} hrs` },
-    { label: 'Basic Pay',     value: `₹ ${data.earnings.basicPay.toFixed(2)}` },
-    { label: 'OT Pay',        value: `₹ ${data.earnings.overtimePay.toFixed(2)}` },
+    { label: 'Basic Pay',     value: `Rs. ${data.earnings.basicPay.toFixed(2)}` },
+    { label: 'OT Pay',        value: `Rs. ${data.earnings.overtimePay.toFixed(2)}` },
   ];
 
   const boxW = (W - 24 - 9) / 4;
@@ -311,15 +372,15 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
 
   // ── Earnings & Deductions Table ───────────────────────────────
   const earningsRows = [
-    ['Basic Pay (Monthly)', `₹ ${data.earnings.basicPay.toFixed(2)}`],
-    ['Overtime Pay',        `₹ ${data.earnings.overtimePay.toFixed(2)}`],
-    ['GROSS EARNINGS',      `₹ ${data.earnings.grossEarnings.toFixed(2)}`],
+    ['Basic Pay (Monthly)', `Rs. ${data.earnings.basicPay.toFixed(2)}`],
+    ['Overtime Pay',        `Rs. ${data.earnings.overtimePay.toFixed(2)}`],
+    ['GROSS EARNINGS',      `Rs. ${data.earnings.grossEarnings.toFixed(2)}`],
   ];
 
   const deductionsRows = [
-    ['Tax Deducted at Source (TDS)', `₹ ${data.deductions.tds.toFixed(2)}`],
-    ['Provident Fund (PF)', `₹ ${data.deductions.pf.toFixed(2)}`],
-    ['TOTAL DEDUCTIONS', `₹ ${data.deductions.totalDeductions.toFixed(2)}`],
+    ['Tax Deducted at Source (TDS)', `Rs. ${data.deductions.tds.toFixed(2)}`],
+    ['Provident Fund (PF)', `Rs. ${data.deductions.pf.toFixed(2)}`],
+    ['TOTAL DEDUCTIONS', `Rs. ${data.deductions.totalDeductions.toFixed(2)}`],
   ];
 
   // Left: Earnings
@@ -386,7 +447,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.text(`( ${data.period.month} ${data.period.year} )`, 20, tableEndY + 15);
 
   doc.setFontSize(14);
-  doc.text(`₹ ${data.netPay.toFixed(2)}`, W - 18, tableEndY + 13, { align: 'right' });
+  doc.text(`Rs. ${data.netPay.toFixed(2)}`, W - 18, tableEndY + 13, { align: 'right' });
 
   // ── Footer ────────────────────────────────────────────────────
   const footerY = tableEndY + 28;
@@ -394,8 +455,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
   doc.text('This is a computer-generated payslip and does not require a signature.', W / 2, footerY, { align: 'center' });
-  doc.text('MARKDOT DOTCORE HRM  //  CONFIDENTIAL', W / 2, footerY + 5, { align: 'center' });
+  doc.text('MARKDOT INTELLECT HRM  //  SECURED READ-ONLY DOCUMENT', W / 2, footerY + 5, { align: 'center' });
 
-  const month = data.period.month.toLowerCase().replace(' ', '_');
-  doc.save(`payslip_${data.employee.employeeId}_${month}_${data.period.year}.pdf`);
+  doc.save(filename);
 }
