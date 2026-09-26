@@ -35,6 +35,9 @@ import chatRoutes from './routes/chats.js';
 import notificationRoutes from './routes/notifications.js';
 import meetingRoutes from './routes/meetings.js';
 import eventRoutes from './routes/events.js';
+import kudosRoutes from './routes/kudos.js';
+import okrRoutes from './routes/okrs.js';
+import reviewRoutes from './routes/reviews.js';
 
 // Initialize Dotenv
 dotenv.config();
@@ -66,6 +69,9 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/kudos', kudosRoutes);
+app.use('/api/okrs', okrRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Serve compiled Android app APK
 app.get('/Dotcore.apk', (req, res) => {
@@ -81,6 +87,7 @@ app.get('/health', (req, res) => {
 });
 
 // Database Connection & Seeding
+// Database Connection & Server Listening Logic
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -94,143 +101,151 @@ if (!process.env.SUPER_ADMIN_PASSWORD) {
   process.exit(1);
 }
 
-mongoose
-  .connect(MONGODB_URI)
-  .then(async () => {
-    console.log('MongoDB connected successfully.');
+// Start HTTP server immediately so routes are available
+server.listen(PORT, () => {
+  console.log(`Express HRM Server running on port ${PORT}`);
+  connectDatabase();
+  startCronJobs();
+});
+
+async function connectDatabase() {
+  const LOCAL_URI = 'mongodb://127.0.0.1:27017/connect_hrm';
+  try {
+    console.log('Attempting MongoDB Atlas connection...');
+    await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
+    console.log('MongoDB Atlas connected successfully.');
+    await onDbConnected();
+  } catch (atlasErr) {
+    console.warn('MongoDB Atlas connection failed:', atlasErr.message);
+    console.log('Attempting local MongoDB connection (mongodb://127.0.0.1:27017/connect_hrm)...');
+    try {
+      await mongoose.connect(LOCAL_URI, { serverSelectionTimeoutMS: 5000 });
+      console.log('Local MongoDB connected successfully.');
+      await onDbConnected();
+    } catch (localErr) {
+      console.error('CRITICAL: Unable to connect to MongoDB Atlas or Local MongoDB.', localErr.message);
+    }
+  }
+}
+
+async function onDbConnected() {
+  try {
     await seedSuperAdmin();
     await seedDefaultLeaveCategories();
-    
-    // Recalculate net working hours in the background
     runRecalculation().catch(err => console.error('Recalculation on startup failed:', err));
-    
-    // Auto-sync team channels and user assignments on startup
     syncJobRoleTeams().catch(err => console.error('Initial team synchronization failed:', err));
-    
-    // Start listening on port
-    server.listen(PORT, () => {
-      console.log(`Express HRM Server running on port ${PORT}`);
+  } catch (err) {
+    console.error('Error post-database connection init:', err);
+  }
+}
 
-      // Start 1-Hour Cron Job for Task End Dates
-      setInterval(async () => {
-        try {
-          const now = new Date();
-          const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
-          
-          const impendingTasks = await Task.find({
-            status: 'in-progress',
-            endDate: { $gt: now, $lte: oneHourFromNow },
-            oneHourAlertSent: false
+function startCronJobs() {
+  setInterval(async () => {
+    if (mongoose.connection.readyState !== 1) return; // Skip if DB not connected
+    try {
+      const now = new Date();
+      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+      
+      const impendingTasks = await Task.find({
+        status: 'in-progress',
+        endDate: { $gt: now, $lte: oneHourFromNow },
+        oneHourAlertSent: false
+      });
+
+      for (const task of impendingTasks) {
+        for (const userId of task.assignedTo) {
+          const notif = new Notification({
+            recipientId: userId,
+            type: 'system',
+            title: 'Mission Deadline Approaching',
+            message: `Mission ${task.title} is ending in less than 1 hour.`,
+            link: '/dashboard/tasks'
           });
-
-          for (const task of impendingTasks) {
-            for (const userId of task.assignedTo) {
-              const notif = new Notification({
-                recipientId: userId,
-                type: 'system',
-                title: 'Mission Deadline Approaching',
-                message: `Mission ${task.title} is ending in less than 1 hour.`,
-                link: '/dashboard/tasks'
-              });
-              await notif.save();
-              const ioInstance = app.get('io');
-              if (ioInstance) {
-                ioInstance.to(userId.toString()).emit('new-notification', notif);
-              }
-            }
-            task.oneHourAlertSent = true;
-            await task.save();
+          await notif.save();
+          const ioInstance = app.get('io');
+          if (ioInstance) {
+            ioInstance.to(userId.toString()).emit('new-notification', notif);
           }
-          
-          // Dynamic Automatic Shift Termination Cron Job
-          try {
-            const activeSessions = await Session.find({
-              status: { $in: ['active', 'on_break'] }
-            }).populate('userId');
-
-            for (const session of activeSessions) {
-              if (!session.userId) continue;
-              const user = session.userId;
-
-              const timezone = session.timezone || 'Asia/Kolkata';
-
-              // Parse shift start and end times to compute shift limit
-              const [startHrs, startMins] = (user.shiftStartTime || '09:00').split(':').map(Number);
-              const [endHrs, endMins] = (user.shiftEndTime || '17:00').split(':').map(Number);
-              
-              // Get shift end time on the day of clockIn in the session's timezone
-              const shiftEndTime = getShiftTimeInUTC(session.clockIn, user.shiftEndTime || '17:00', timezone);
-              
-              // Auto clock out occurs only after 5 minutes of exceeding shift end time
-              // Break time does not delay or affect the auto clock off trigger
-              const autoClockOutTime = new Date(shiftEndTime.getTime() + 5 * 60 * 1000);
-
-              if (Date.now() >= autoClockOutTime.getTime()) {
-                const clockOutTime = autoClockOutTime;
-                
-                // Auto-conclude breaks if still open
-                session.breaks.forEach((b) => {
-                  if (!b.endedAt) {
-                    b.endedAt = clockOutTime;
-                  }
-                });
-
-                const userBreakLimit = user.breakLimitMinutes !== undefined ? user.breakLimitMinutes : 0;
-
-                // Calculate net working minutes utilizing the utility function
-                const netWorkingMins = calculateNetWorkingMinutes(
-                  session.clockIn,
-                  clockOutTime,
-                  userBreakLimit
-                );
-
-                session.clockOut = clockOutTime;
-                session.duration = netWorkingMins;
-                session.overtimeMinutes = 0;
-                session.regularPay = 0;
-                session.overtimePay = 0;
-                session.status = 'completed';
-                session.needsApproval = true;
-                session.approvalStatus = 'pending';
-                session.autoClockedOut = true;
-
-                await session.save();
-
-                // Calculate shift limit in hours for notification message
-                let limitMins = (endHrs * 60 + endMins) - (startHrs * 60 + startMins);
-                if (limitMins < 0) limitMins += 24 * 60;
-                const limitHours = (limitMins / 60).toFixed(1);
-
-                // Create notification for operator
-                const notif = new Notification({
-                  recipientId: session.userId._id,
-                  type: 'system',
-                  title: 'Auto Shift Termination Alert',
-                  message: `Your shift has been automatically terminated as it exceeded the ${limitHours}-hour limit. Admin approval is pending.`,
-                  link: '/dashboard/clock'
-                });
-                await notif.save();
-
-                // Emit real-time WebSockets
-                const ioInstance = app.get('io');
-                if (ioInstance) {
-                  ioInstance.to(session.userId._id.toString()).emit('new-notification', notif);
-                  ioInstance.emit('clock-status-changed', { userId: session.userId._id, session });
-                }
-              }
-            }
-          } catch (shiftErr) {
-            console.error('Error running shift auto-termination cron:', shiftErr);
-          }
-        } catch (error) {
-          console.error('Error running task cron:', error);
         }
-      }, 60000); // Check every 60 seconds
-    });
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-  });
+        task.oneHourAlertSent = true;
+        await task.save();
+      }
+      
+      // Dynamic Automatic Shift Termination Cron Job
+      try {
+        const activeSessions = await Session.find({
+          status: { $in: ['active', 'on_break'] }
+        }).populate('userId');
+
+        for (const session of activeSessions) {
+          if (!session.userId) continue;
+          const user = session.userId;
+
+          const timezone = session.timezone || 'Asia/Kolkata';
+
+          const [startHrs, startMins] = (user.shiftStartTime || '09:00').split(':').map(Number);
+          const [endHrs, endMins] = (user.shiftEndTime || '17:00').split(':').map(Number);
+          
+          const shiftEndTime = getShiftTimeInUTC(session.clockIn, user.shiftEndTime || '17:00', timezone);
+          const autoClockOutTime = new Date(shiftEndTime.getTime() + 5 * 60 * 1000);
+
+          if (Date.now() >= autoClockOutTime.getTime()) {
+            const clockOutTime = autoClockOutTime;
+            
+            session.breaks.forEach((b) => {
+              if (!b.endedAt) {
+                b.endedAt = clockOutTime;
+              }
+            });
+
+            const userBreakLimit = user.breakLimitMinutes !== undefined ? user.breakLimitMinutes : 0;
+
+            const netWorkingMins = calculateNetWorkingMinutes(
+              session.clockIn,
+              clockOutTime,
+              userBreakLimit
+            );
+
+            session.clockOut = clockOutTime;
+            session.duration = netWorkingMins;
+            session.overtimeMinutes = 0;
+            session.regularPay = 0;
+            session.overtimePay = 0;
+            session.status = 'completed';
+            session.needsApproval = true;
+            session.approvalStatus = 'pending';
+            session.autoClockedOut = true;
+
+            await session.save();
+
+            let limitMins = (endHrs * 60 + endMins) - (startHrs * 60 + startMins);
+            if (limitMins < 0) limitMins += 24 * 60;
+            const limitHours = (limitMins / 60).toFixed(1);
+
+            const notif = new Notification({
+              recipientId: session.userId._id,
+              type: 'system',
+              title: 'Auto Shift Termination Alert',
+              message: `Your shift has been automatically terminated as it exceeded the ${limitHours}-hour limit. Admin approval is pending.`,
+              link: '/dashboard/clock'
+            });
+            await notif.save();
+
+            const ioInstance = app.get('io');
+            if (ioInstance) {
+              ioInstance.to(session.userId._id.toString()).emit('new-notification', notif);
+              ioInstance.emit('clock-status-changed', { userId: session.userId._id, session });
+            }
+          }
+        }
+      } catch (shiftErr) {
+        console.error('Error running shift auto-termination cron:', shiftErr);
+      }
+    } catch (error) {
+      console.error('Error running task cron:', error);
+    }
+  }, 60000);
+}
 
 // Super Admin Seeding logic
 async function seedSuperAdmin() {

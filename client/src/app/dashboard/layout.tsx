@@ -24,7 +24,9 @@ import {
   FileText,
   Edit,
   X,
-  Download
+  Download,
+  Trophy,
+  Target
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { playNotificationSound } from '../../utils/audio';
@@ -295,6 +297,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Operational Calendar', index: '08', href: '/dashboard/calendar', icon: Calendar, role: 'all' },
     { name: 'Operational Notes', index: '09', href: '/dashboard/notes', icon: Edit, role: 'all' },
     { name: 'Communal Events', index: '10', href: '/dashboard/events', icon: Radio, role: 'all' },
+    { name: 'Peer Kudos', index: '11', href: '/dashboard/kudos', icon: Trophy, role: 'all' },
+    { name: 'OKRs & Performance', index: '12', href: '/dashboard/okrs', icon: Target, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link

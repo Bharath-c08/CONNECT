@@ -17,7 +17,9 @@ import {
   Binary,
   Radio,
   Sliders,
-  Download
+  Download,
+  Trophy,
+  Target
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -54,6 +56,8 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [events, setEvents] = useState<any[]>([]);
   const [celebrations, setCelebrations] = useState<any[]>([]);
+  const [kudosStats, setKudosStats] = useState<any>({ totalPoints: 0, receivedCount: 0 });
+  const [okrsSummary, setOkrsSummary] = useState<any>({ count: 0, progress: 0 });
   
   const [breakTypes, setBreakTypes] = useState<any[]>([]);
   const [selectedBreakType, setSelectedBreakType] = useState<any>(null);
@@ -190,7 +194,9 @@ export default function DashboardPage() {
         historyDataRes,
         leaveDataRes,
         breakTypesDataRes,
-        eventsRes
+        eventsRes,
+        kudosRes,
+        okrsRes
       ] = await Promise.allSettled([
         apiRequest('/auth/me'),
         apiRequest(`/clock/status?timezone=${Intl.DateTimeFormat().resolvedOptions().timeZone}`),
@@ -198,8 +204,25 @@ export default function DashboardPage() {
         apiRequest('/clock/history'),
         apiRequest('/leaves/my'),
         apiRequest('/clock/breaks/types'),
-        apiRequest('/events')
+        apiRequest('/events'),
+        apiRequest('/kudos/stats'),
+        apiRequest('/okrs')
       ]);
+
+      if (kudosRes.status === 'fulfilled') {
+        setKudosStats(kudosRes.value);
+      }
+
+      if (okrsRes.status === 'fulfilled') {
+        const goalList = okrsRes.value || [];
+        const avgProg = goalList.length
+          ? Math.round(
+              goalList.reduce((acc: number, g: any) => acc + Math.min(100, (g.currentValue / g.targetValue) * 100), 0) /
+                goalList.length
+            )
+          : 0;
+        setOkrsSummary({ count: goalList.length, progress: avgProg });
+      }
 
       if (userProfileRes.status === 'fulfilled') {
         setUser(userProfileRes.value);
@@ -1046,6 +1069,87 @@ export default function DashboardPage() {
                 </div>
               ))
             )}
+          </div>
+        </motion.div>
+
+        {/* ── Peer Kudos Spotlight ── */}
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_06 // GAMIFICATION_DECK</div>
+          
+          <div className="flex items-center justify-between select-none">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-amber-400">
+                <Trophy className="w-4 h-4" />
+              </div>
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">KUDOS_TELEMETRY</p>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">Peer Appreciation Hub</p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/kudos"
+              className="flex items-center gap-0.5 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline text-amber-400"
+            >
+              <span>KUDOS_DECK</span><ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-center font-mono">
+            <div className="p-3 rounded bg-zinc-950/40 border border-slate-800">
+              <p className="text-[9px] text-slate-500 uppercase font-bold">PTS EARNED</p>
+              <p className="text-xl font-black text-amber-400 mt-1">{kudosStats.totalPoints || 0}</p>
+            </div>
+            <div className="p-3 rounded bg-zinc-950/40 border border-slate-800">
+              <p className="text-[9px] text-slate-500 uppercase font-bold">BADGES</p>
+              <p className="text-xl font-black text-cyan-400 mt-1">{kudosStats.receivedCount || 0}</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── OKRs & Performance ── */}
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_07 // OBJECTIVES_MATRIX</div>
+          
+          <div className="flex items-center justify-between select-none">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-cyan-400">
+                <Target className="w-4 h-4" />
+              </div>
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">OKRs & GOALS</p>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">Target Milestones & 360</p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/okrs"
+              className="flex items-center gap-0.5 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline text-cyan-400"
+            >
+              <span>OKR_DECK</span><ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="space-y-2 font-mono">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Overall Target Completion</span>
+              <span className="text-cyan-400 font-bold">{okrsSummary.progress || 0}%</span>
+            </div>
+            <div className="w-full bg-zinc-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div
+                className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${okrsSummary.progress || 0}%` }}
+              />
+            </div>
+            <p className="text-[9px] text-slate-500 text-right mt-1 font-bold">
+              {okrsSummary.count || 0} ACTIVE OBJECTIVES TRACKED
+            </p>
           </div>
         </motion.div>
 
