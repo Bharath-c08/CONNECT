@@ -26,7 +26,8 @@ import {
   X,
   Download,
   Trophy,
-  Target
+  Target,
+  Sparkles
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { playNotificationSound } from '../../utils/audio';
@@ -299,6 +300,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Communal Events', index: '10', href: '/dashboard/events', icon: Radio, role: 'all' },
     { name: 'Peer Kudos', index: '11', href: '/dashboard/kudos', icon: Trophy, role: 'all' },
     { name: 'OKRs & Performance', index: '12', href: '/dashboard/okrs', icon: Target, role: 'all' },
+    { name: 'CONNECT AI Assistant', index: '13', href: '/dashboard/ai', icon: Sparkles, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link

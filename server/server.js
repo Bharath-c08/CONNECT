@@ -38,6 +38,7 @@ import eventRoutes from './routes/events.js';
 import kudosRoutes from './routes/kudos.js';
 import okrRoutes from './routes/okrs.js';
 import reviewRoutes from './routes/reviews.js';
+import aiRoutes from './routes/ai.js';
 
 // Initialize Dotenv
 dotenv.config();
@@ -72,6 +73,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/kudos', kudosRoutes);
 app.use('/api/okrs', okrRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Serve compiled Android app APK
 app.get('/Dotcore.apk', (req, res) => {
@@ -102,7 +104,7 @@ if (!process.env.SUPER_ADMIN_PASSWORD) {
 }
 
 // Start HTTP server immediately so routes are available
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Express HRM Server running on port ${PORT}`);
   connectDatabase();
   startCronJobs();

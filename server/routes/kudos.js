@@ -86,7 +86,7 @@ router.get('/stats', verifyToken, async (req, res) => {
     const sent = await Kudos.countDocuments({ senderId: userId });
 
     const totalPoints = received.reduce((acc, curr) => acc + (curr.points || 0), 0);
-    const badgeCounts = received.reduce((acc: any, curr: any) => {
+    const badgeCounts = received.reduce((acc, curr) => {
       acc[curr.badge] = (acc[curr.badge] || 0) + 1;
       return acc;
     }, {});

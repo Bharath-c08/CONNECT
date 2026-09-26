@@ -19,7 +19,9 @@ import {
   Sliders,
   Download,
   Trophy,
-  Target
+  Target,
+  Sparkles,
+  Bot
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -1149,6 +1151,43 @@ export default function DashboardPage() {
             </div>
             <p className="text-[9px] text-slate-500 text-right mt-1 font-bold">
               {okrsSummary.count || 0} ACTIVE OBJECTIVES TRACKED
+            </p>
+          </div>
+        </motion.div>
+
+        {/* ── CONNECT AI Assistant Widget ── */}
+        <motion.div 
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          className="card flex flex-col gap-5"
+        >
+          <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_08 // AI_CORE_ASSISTANT</div>
+          
+          <div className="flex items-center justify-between select-none">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-purple-400">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="font-mono">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">CONNECT_AI</p>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">HR Assistant & Standup</p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/ai"
+              className="flex items-center gap-0.5 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline text-purple-400"
+            >
+              <span>AI_CONSOLE</span><ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="p-3 rounded bg-zinc-950/40 border border-slate-800 font-mono text-[10px] space-y-2">
+            <div className="flex items-center gap-2 text-cyan-400 font-bold">
+              <Bot className="w-3.5 h-3.5" />
+              <span>HR & Policy Uplink Active</span>
+            </div>
+            <p className="text-slate-400 leading-relaxed">
+              Ask questions about leave limits, overtime pay, or click to auto-build your daily standup post.
             </p>
           </div>
         </motion.div>

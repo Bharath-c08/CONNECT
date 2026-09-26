@@ -14,7 +14,7 @@ router.get('/', verifyToken, async (req, res) => {
       return res.json([]);
     }
     const { revieweeId, period } = req.query;
-    const filter: any = {};
+    const filter = {};
 
     if (revieweeId) filter.revieweeId = revieweeId;
     if (period) filter.period = period;

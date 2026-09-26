@@ -13,7 +13,7 @@ router.get('/', verifyToken, async (req, res) => {
       return res.json([]);
     }
     const { assignedTo, status, quarter, year } = req.query;
-    const filter: any = {};
+    const filter = {};
 
     if (assignedTo) filter.assignedTo = assignedTo;
     if (status) filter.status = status;
