@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Lock, User as UserIcon, RefreshCw, AlertCircle, CheckCircle, Sun, Moon, Cpu, Binary, KeyRound, Send, Shield, FileText } from 'lucide-react';
-import { apiRequest, setAuthToken, setCurrentUser, getAuthToken } from '../utils/api';
+import { Lock, User as UserIcon, RefreshCw, AlertCircle, CheckCircle, Sun, Moon, Cpu, Binary, KeyRound, Send, Shield, FileText, Smartphone } from 'lucide-react';
+import { apiRequest, setAuthToken, setCurrentUser, getAuthToken, getSocketUrl } from '../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
@@ -175,6 +175,22 @@ export default function LoginPage() {
           >
             A secure ERP command deck designed for platform operations. Clock shifts, manage leave approvals, track real-time task logs, log encrypted team chats, and author structured documents—all from one secure operator gateway.
           </p>
+
+          <div className="mt-8">
+            <a
+              href={`${getSocketUrl()}/Dotcore.apk`}
+              download="Dotcore.apk"
+              className="inline-flex items-center gap-2.5 px-5 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all hover:-translate-y-0.5 shadow-sm"
+              style={{
+                borderColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.25)' : '#cbd5e1',
+                backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.05)' : '#f8fafc',
+                color: theme === 'dark' ? '#f8fafc' : '#0f172a'
+              }}
+            >
+              <Smartphone className="w-4 h-4 text-[#ef4444]" />
+              <span>Download Android App</span>
+            </a>
+          </div>
         </div>
 
         {/* Spaced 2x2 Features Grid (Pushed to bottom, just above footer) */}

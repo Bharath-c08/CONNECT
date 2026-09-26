@@ -18,17 +18,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.webkit.JavascriptInterface
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 class MainActivity : ComponentActivity() {
   private var webView: WebView? = null
@@ -36,34 +35,60 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Request dynamic notification permission on Android 13+
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+    // Start background notification service if already logged in
+    val sharedPref = getSharedPreferences("DotcorePrefs", Context.MODE_PRIVATE)
+    if (sharedPref.getString("auth_token", null) != null) {
+      val serviceIntent = Intent(this, NotificationService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(serviceIntent)
+      } else {
+        startService(serviceIntent)
       }
     }
-
-    // Schedule background WorkManager task for periodic notification polling
-    val constraints = Constraints.Builder()
-      .setRequiredNetworkType(NetworkType.CONNECTED)
-      .build()
-
-    val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(15, TimeUnit.MINUTES)
-      .setConstraints(constraints)
-      .build()
-
-    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-      "DotcoreNotificationWork",
-      ExistingPeriodicWorkPolicy.KEEP,
-      workRequest
-    )
 
     enableEdgeToEdge()
     setContent {
       PortalWebView(
         url = "https://hrm.markdotintellect.com",
-        onWebViewCreated = { webView = it }
+        onWebViewCreated = { 
+          webView = it
+          handleCallIntent(intent)
+        }
       )
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleCallIntent(intent)
+  }
+
+  private fun handleCallIntent(intent: Intent?) {
+    val action = intent?.action
+    val callerId = intent?.getStringExtra("callerId")
+    val callType = intent?.getStringExtra("callType")
+    val callerName = intent?.getStringExtra("callerName")
+    val signalData = intent?.getStringExtra("signalData")
+
+    if (callerId != null) {
+      val isAccept = if (action == "ACCEPT_CALL") "true" else "false"
+      val safeName = callerName?.replace("'", "\\'") ?: "Operator"
+      val safeSignal = signalData?.replace("'", "\\'") ?: ""
+
+      webView?.postDelayed({
+        val jsCode = """
+          window.pendingCall = {
+            from: '$callerId',
+            type: '$callType',
+            name: '$safeName',
+            signal: '$safeSignal',
+            accept: $isAccept
+          };
+          window.dispatchEvent(new CustomEvent('external-incoming-call'));
+        """.trimIndent().replace("\n", " ")
+        webView?.evaluateJavascript(jsCode, null)
+      }, 1000)
     }
   }
 
@@ -79,10 +104,37 @@ class MainActivity : ComponentActivity() {
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
+  val context = LocalContext.current
+
+  // Register permission launcher for dynamic notifications, camera, and microphone permissions
+  val permissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestMultiplePermissions()
+  ) { permissions ->
+    // Permissions statuses handled
+  }
+
+  LaunchedEffect(Unit) {
+    val list = mutableListOf<String>()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        list.add(Manifest.permission.POST_NOTIFICATIONS)
+      }
+    }
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+      list.add(Manifest.permission.CAMERA)
+    }
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+      list.add(Manifest.permission.RECORD_AUDIO)
+    }
+    if (list.isNotEmpty()) {
+      permissionLauncher.launch(list.toTypedArray())
+    }
+  }
+
   AndroidView(
     modifier = Modifier.fillMaxSize().statusBarsPadding(),
-    factory = { context ->
-      WebView(context).apply {
+    factory = { ctx ->
+      WebView(ctx).apply {
         webViewClient = object : WebViewClient() {
           override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
             url?.let { view?.loadUrl(it) }
@@ -97,7 +149,7 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
         }
 
         val versionName = try {
-          context.packageManager.getPackageInfo(context.packageName, 0).versionName
+          ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
         } catch (e: Exception) {
           "1.0"
         }
@@ -110,10 +162,11 @@ fun PortalWebView(url: String, onWebViewCreated: (WebView) -> Unit) {
           useWideViewPort = true
           mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
           userAgentString = userAgentString + " CONNECT_Android_App/" + versionName
+          mediaPlaybackRequiresUserGesture = false
         }
         
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-        addJavascriptInterface(AndroidInterface(context), "AndroidInterface")
+        addJavascriptInterface(AndroidInterface(ctx), "AndroidInterface")
         
         loadUrl(url)
         onWebViewCreated(this)
@@ -130,6 +183,14 @@ class AndroidInterface(private val context: Context) {
       putString("auth_token", token)
       apply()
     }
+
+    // Start background notification service immediately on login
+    val serviceIntent = Intent(context, NotificationService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      context.startForegroundService(serviceIntent)
+    } else {
+      context.startService(serviceIntent)
+    }
   }
 
   @JavascriptInterface
@@ -139,5 +200,8 @@ class AndroidInterface(private val context: Context) {
       remove("auth_token")
       apply()
     }
+    // Stop background notification service on logout
+    val serviceIntent = Intent(context, NotificationService::class.java)
+    context.stopService(serviceIntent)
   }
 }

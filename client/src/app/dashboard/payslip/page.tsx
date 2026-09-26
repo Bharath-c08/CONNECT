@@ -14,6 +14,10 @@ import {
   Clock,
   TrendingUp,
   Layers,
+  Edit3,
+  RotateCcw,
+  UserPlus,
+  UserCheck,
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../../../utils/api';
 import { generatePayslipPDF } from '../../../utils/export';
@@ -52,6 +56,28 @@ export default function PayslipPage() {
   const [tdsPercent, setTdsPercent] = useState(10);
   const [pfPercent,  setPfPercent]  = useState(12);
 
+  // Editable parameters (temporary overrides for payslip generation)
+  const [customBasicPay, setCustomBasicPay]     = useState<string>('');
+  const [customWorkingDays, setCustomWorkingDays] = useState<string>('');
+  const [customTotalHours, setCustomTotalHours]   = useState<string>('');
+  const [customOtHours, setCustomOtHours]         = useState<string>('');
+
+  // Manual / Unregistered Employee Entry state
+  const [isManualMode, setIsManualMode] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    fullName: '',
+    employeeId: '',
+    jobTitle: '',
+    email: '',
+    employmentType: 'fulltime',
+    joiningDate: '',
+    basicPay: '15000',
+    workingDays: '26',
+    totalHours: '160',
+    otHours: '0',
+    otPay: '0',
+  });
+
   // Fetched payslip data
   const [payslipData, setPayslipData] = useState<any>(null);
 
@@ -77,6 +103,7 @@ export default function PayslipPage() {
       setError('Please select an employee.');
       return;
     }
+    setIsManualMode(false);
     setLoading(true);
     setError('');
     setSuccess('');
@@ -87,6 +114,10 @@ export default function PayslipPage() {
         `/clock/admin/payslip-data?userId=${selectedEmployee}&month=${selectedMonth}&year=${selectedYear}`
       );
       setPayslipData(data);
+      setCustomBasicPay(String(data.employee?.basicPay ?? 0));
+      setCustomWorkingDays(String(data.workingDays ?? 0));
+      setCustomTotalHours(String((data.totalMinutes / 60).toFixed(2)));
+      setCustomOtHours(String((data.totalOTMinutes / 60).toFixed(2)));
     } catch (err: any) {
       setError(err.message || 'Failed to fetch payslip data.');
     } finally {
@@ -94,12 +125,89 @@ export default function PayslipPage() {
     }
   };
 
-  const buildPayslipPayload = useCallback(() => {
-    if (!payslipData) return null;
-    const { employee, overtimePay, totalMinutes, totalOTMinutes, workingDays } = payslipData;
+  const handleResetDefaults = () => {
+    if (!payslipData) return;
+    setCustomBasicPay(String(payslipData.employee?.basicPay ?? 0));
+    setCustomWorkingDays(String(payslipData.workingDays ?? 0));
+    setCustomTotalHours(String((payslipData.totalMinutes / 60).toFixed(2)));
+    setCustomOtHours(String((payslipData.totalOTMinutes / 60).toFixed(2)));
+  };
 
-    // Basic pay is the fixed monthly salary from the employee record
-    const basicPay     = employee.basicPay || 0;
+  const buildPayslipPayload = useCallback(() => {
+    if (isManualMode) {
+      const basicPay = Number(manualForm.basicPay) || 0;
+      const overtimePay = Number(manualForm.otPay) || 0;
+      const grossEarnings = basicPay + overtimePay;
+      const tds = (grossEarnings * tdsPercent) / 100;
+      const pf  = (grossEarnings * pfPercent)  / 100;
+      const totalDeductions = tds + pf;
+      const netPay = grossEarnings - totalDeductions;
+
+      return {
+        employee: {
+          fullName:       manualForm.fullName || 'Unregistered Staff',
+          employeeId:     manualForm.employeeId || 'EXT-001',
+          jobTitle:       manualForm.jobTitle || 'Contractor',
+          employmentType: manualForm.employmentType || 'fulltime',
+          email:          manualForm.email || '—',
+          joiningDate:    manualForm.joiningDate
+            ? new Date(manualForm.joiningDate).toLocaleDateString()
+            : '—',
+          basicPay,
+          overtimeEligible: true,
+        },
+        period: {
+          month: MONTHS[parseInt(selectedMonth) - 1],
+          year:  selectedYear,
+        },
+        earnings: {
+          basicPay,
+          overtimePay,
+          grossEarnings,
+        },
+        deductions: {
+          tds,
+          pf,
+          totalDeductions,
+        },
+        netPay,
+        workingDays: Number(manualForm.workingDays) || 0,
+        totalHours: Number(manualForm.totalHours) || 0,
+        otHours: Number(manualForm.otHours) || 0,
+      };
+    }
+
+    if (!payslipData) return null;
+    const { employee, overtimePay: fetchedOtPay, totalMinutes, totalOTMinutes, workingDays: fetchedWorkingDays } = payslipData;
+
+    // Use custom overrides if valid numbers, fallback to fetched defaults
+    const basicPay = customBasicPay !== '' && !isNaN(Number(customBasicPay))
+      ? Number(customBasicPay)
+      : (employee.basicPay || 0);
+
+    const workingDays = customWorkingDays !== '' && !isNaN(Number(customWorkingDays))
+      ? Number(customWorkingDays)
+      : (fetchedWorkingDays || 0);
+
+    const totalHours = customTotalHours !== '' && !isNaN(Number(customTotalHours))
+      ? Number(customTotalHours)
+      : (totalMinutes / 60);
+
+    const otHours = customOtHours !== '' && !isNaN(Number(customOtHours))
+      ? Number(customOtHours)
+      : (totalOTMinutes / 60);
+
+    // Calculate overtime pay based on custom otHours if edited
+    let overtimePay = fetchedOtPay || 0;
+    if (customOtHours !== '' && !isNaN(Number(customOtHours))) {
+      const customOtMins = Number(customOtHours) * 60;
+      if (employee.overtimePayPerMinute) {
+        overtimePay = customOtMins * employee.overtimePayPerMinute;
+      } else if (totalOTMinutes > 0) {
+        overtimePay = (fetchedOtPay / totalOTMinutes) * customOtMins;
+      }
+    }
+
     const grossEarnings = basicPay + overtimePay;
     const tds = (grossEarnings * tdsPercent) / 100;
     const pf  = (grossEarnings * pfPercent)  / 100;
@@ -135,17 +243,17 @@ export default function PayslipPage() {
       },
       netPay,
       workingDays,
-      totalHours: totalMinutes   / 60,
-      otHours:    totalOTMinutes / 60,
+      totalHours,
+      otHours,
     };
-  }, [payslipData, tdsPercent, pfPercent, selectedMonth, selectedYear]);
+  }, [isManualMode, manualForm, payslipData, customBasicPay, customWorkingDays, customTotalHours, customOtHours, tdsPercent, pfPercent, selectedMonth, selectedYear]);
 
   const handleDownloadPDF = async () => {
     const payload = buildPayslipPayload();
     if (!payload) return;
     setGenerating(true);
     try {
-      await generatePayslipPDF(payload);
+      await generatePayslipPDF(payload, 'payslip-preview-card');
       setSuccess('Payslip PDF generated successfully.');
     } catch (err: any) {
       setError('Failed to generate PDF: ' + (err.message || err));
@@ -214,126 +322,381 @@ export default function PayslipPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
 
         {/* ── Left: Controls Panel ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={springTransition}
-          className="xl:col-span-1 card p-0 overflow-hidden relative"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#ef4444]/40 to-transparent" />
-          <div className="absolute top-1 left-2 text-[6px] opacity-20">DECK // PAYSLIP_CONFIG</div>
+        <div className="xl:col-span-1 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={springTransition}
+            className="card p-0 overflow-hidden relative"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
+          >
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#ef4444]/40 to-transparent" />
+            <div className="absolute top-1 left-2 text-[6px] opacity-20">DECK // PAYSLIP_CONFIG</div>
 
-          <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-[#ef4444]" />
-              PAYSLIP PARAMETERS
-            </h2>
-          </div>
-
-          <div className="p-6 space-y-5">
-            {/* Employee */}
-            <div className="form-group">
-              <label className="form-label mb-1 flex items-center gap-1.5">
-                <UserIcon className="w-3 h-3" /> EMPLOYEE *
-              </label>
-              <select
-                value={selectedEmployee}
-                onChange={(e) => { setSelectedEmployee(e.target.value); setPayslipData(null); }}
-                className="select w-full"
-              >
-                <option value="">Select Employee…</option>
-                {staffList.map((emp) => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.fullName} ({emp.employeeId})
-                  </option>
-                ))}
-              </select>
+            <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-[#ef4444]" />
+                PAYSLIP PARAMETERS
+              </h2>
             </div>
 
-            {/* Month + Year */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-6 space-y-5">
+              {/* Employee */}
               <div className="form-group">
                 <label className="form-label mb-1 flex items-center gap-1.5">
-                  <Calendar className="w-3 h-3" /> MONTH *
+                  <UserIcon className="w-3 h-3" /> EMPLOYEE *
                 </label>
                 <select
-                  value={selectedMonth}
-                  onChange={(e) => { setSelectedMonth(e.target.value); setPayslipData(null); }}
+                  value={selectedEmployee}
+                  onChange={(e) => { setSelectedEmployee(e.target.value); setPayslipData(null); setIsManualMode(false); }}
                   className="select w-full"
                 >
-                  {MONTHS.map((m, i) => (
-                    <option key={m} value={String(i + 1)}>{m}</option>
+                  <option value="">Select Employee…</option>
+                  {staffList.map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.fullName} ({emp.employeeId})
+                    </option>
                   ))}
                 </select>
               </div>
-              <div className="form-group">
-                <label className="form-label mb-1">YEAR *</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => { setSelectedYear(e.target.value); setPayslipData(null); }}
-                  className="select w-full"
-                >
-                  {getCurrentYearRange().map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            {/* Deductions */}
-            <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">DEDUCTION RATES</p>
+              {/* Month + Year */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="form-group">
-                  <label className="form-label mb-1">TDS %</label>
+                  <label className="form-label mb-1 flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3" /> MONTH *
+                  </label>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => { setSelectedMonth(e.target.value); setPayslipData(null); }}
+                    className="select w-full"
+                  >
+                    {MONTHS.map((m, i) => (
+                      <option key={m} value={String(i + 1)}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label mb-1">YEAR *</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => { setSelectedYear(e.target.value); setPayslipData(null); }}
+                    className="select w-full"
+                  >
+                    {getCurrentYearRange().map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Editable Payslip Parameter Overrides */}
+              {!isManualMode && payslipData && (
+                <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-[#ef4444] flex items-center gap-1.5">
+                      <Edit3 className="w-3 h-3" /> EDIT PAYSLIP PARAMETERS
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleResetDefaults}
+                      className="text-[9px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Reset parameters to original telemetry values"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" /> Reset
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="form-group">
+                      <label className="form-label mb-1 text-[9px] text-slate-400">BASIC PAY (₹)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={500}
+                        value={customBasicPay}
+                        onChange={(e) => setCustomBasicPay(e.target.value)}
+                        className="input font-mono text-xs"
+                        placeholder="Basic Pay"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1 text-[9px] text-slate-400">WORKING DAYS</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={31}
+                        step={1}
+                        value={customWorkingDays}
+                        onChange={(e) => setCustomWorkingDays(e.target.value)}
+                        className="input font-mono text-xs"
+                        placeholder="Working Days"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1 text-[9px] text-slate-400">TOTAL HOURS (HRS)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={customTotalHours}
+                        onChange={(e) => setCustomTotalHours(e.target.value)}
+                        className="input font-mono text-xs"
+                        placeholder="Total Hours"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label mb-1 text-[9px] text-slate-400">OT HOURS (HRS)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={customOtHours}
+                        onChange={(e) => setCustomOtHours(e.target.value)}
+                        className="input font-mono text-xs"
+                        placeholder="OT Hours"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[8px] text-slate-500 tracking-wider">
+                    * Edits recalculate payslip preview & PDF live (master record remains untouched).
+                  </p>
+                </div>
+              )}
+
+              {/* Deductions */}
+              <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">DEDUCTION RATES</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="form-group">
+                    <label className="form-label mb-1">TDS %</label>
+                    <input
+                      type="number"
+                      min={0} max={50} step={0.5}
+                      value={tdsPercent}
+                      onChange={(e) => setTdsPercent(Number(e.target.value))}
+                      className="input font-mono"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1">PF %</label>
+                    <input
+                      type="number"
+                      min={0} max={25} step={0.5}
+                      value={pfPercent}
+                      onChange={(e) => setPfPercent(Number(e.target.value))}
+                      className="input font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2 pt-2">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handlePreview}
+                  disabled={loading || !selectedEmployee}
+                  className="w-full btn btn-secondary h-10 text-[10px] font-extrabold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Binary className="w-3.5 h-3.5" />}
+                  {loading ? 'LOADING DATA…' : 'PREVIEW PAYSLIP'}
+                </motion.button>
+
+                {!isManualMode && preview && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleDownloadPDF}
+                    disabled={generating}
+                    className="w-full btn btn-primary h-10 text-[10px] font-extrabold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {generating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    {generating ? 'GENERATING PDF…' : 'DOWNLOAD PAYSLIP PDF'}
+                  </motion.button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Container 2: Unregistered Employee Manual Entry Container */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ ...springTransition, delay: 0.05 }}
+            className="card p-0 overflow-hidden relative"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
+          >
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#ef4444]/40 to-transparent" />
+            <div className="absolute top-1 left-2 text-[6px] opacity-20">DECK // MANUAL_STAFF_ENTRY</div>
+
+            <div className="p-6 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <UserPlus className="w-3.5 h-3.5 text-[#ef4444]" />
+                MANUAL ENTRY // UNREGISTERED STAFF
+              </h2>
+              {isManualMode && (
+                <span className="px-2 py-0.5 text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded uppercase tracking-wider">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-[9px] text-slate-500 tracking-wide uppercase">
+                Input details manually for contractors or staff not registered in HRM.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="form-group">
+                  <label className="form-label mb-1 text-[9px] text-slate-400">FULL NAME *</label>
                   <input
-                    type="number"
-                    min={0} max={50} step={0.5}
-                    value={tdsPercent}
-                    onChange={(e) => setTdsPercent(Number(e.target.value))}
-                    className="input font-mono"
+                    type="text"
+                    value={manualForm.fullName}
+                    onChange={(e) => setManualForm({ ...manualForm, fullName: e.target.value })}
+                    className="input font-mono text-xs"
+                    placeholder="e.g. John Doe"
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label mb-1">PF %</label>
+                  <label className="form-label mb-1 text-[9px] text-slate-400">EMPLOYEE ID *</label>
                   <input
-                    type="number"
-                    min={0} max={25} step={0.5}
-                    value={pfPercent}
-                    onChange={(e) => setPfPercent(Number(e.target.value))}
-                    className="input font-mono"
+                    type="text"
+                    value={manualForm.employeeId}
+                    onChange={(e) => setManualForm({ ...manualForm, employeeId: e.target.value })}
+                    className="input font-mono text-xs"
+                    placeholder="e.g. EXT-001"
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Actions */}
-            <div className="space-y-2 pt-2">
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={handlePreview}
-                disabled={loading || !selectedEmployee}
-                className="w-full btn btn-secondary h-10 text-[10px] font-extrabold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40"
-              >
-                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Binary className="w-3.5 h-3.5" />}
-                {loading ? 'LOADING DATA…' : 'PREVIEW PAYSLIP'}
-              </motion.button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="form-group">
+                  <label className="form-label mb-1 text-[9px] text-slate-400">DESIGNATION</label>
+                  <input
+                    type="text"
+                    value={manualForm.jobTitle}
+                    onChange={(e) => setManualForm({ ...manualForm, jobTitle: e.target.value })}
+                    className="input font-mono text-xs"
+                    placeholder="e.g. Contractor"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label mb-1 text-[9px] text-slate-400">EMAIL</label>
+                  <input
+                    type="email"
+                    value={manualForm.email}
+                    onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })}
+                    className="input font-mono text-xs"
+                    placeholder="e.g. john@domain.com"
+                  />
+                </div>
+              </div>
 
-              {preview && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="form-group">
+                  <label className="form-label mb-1 text-[9px] text-slate-400">EMPLOYMENT TYPE</label>
+                  <select
+                    value={manualForm.employmentType}
+                    onChange={(e) => setManualForm({ ...manualForm, employmentType: e.target.value })}
+                    className="select w-full text-xs"
+                  >
+                    <option value="fulltime">Fulltime</option>
+                    <option value="parttime">Parttime</option>
+                    <option value="Intern">Intern</option>
+                    <option value="Contract">Contract</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label mb-1 text-[9px] text-slate-400">JOINING DATE</label>
+                  <input
+                    type="date"
+                    value={manualForm.joiningDate}
+                    onChange={(e) => setManualForm({ ...manualForm, joiningDate: e.target.value })}
+                    className="input font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">EARNINGS & WORK PARAMETERS</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">BASIC PAY (₹)</label>
+                    <input
+                      type="number"
+                      min={0} step={500}
+                      value={manualForm.basicPay}
+                      onChange={(e) => setManualForm({ ...manualForm, basicPay: e.target.value })}
+                      className="input font-mono text-xs"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">WORKING DAYS</label>
+                    <input
+                      type="number"
+                      min={0} max={31}
+                      value={manualForm.workingDays}
+                      onChange={(e) => setManualForm({ ...manualForm, workingDays: e.target.value })}
+                      className="input font-mono text-xs"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">TOTAL HOURS</label>
+                    <input
+                      type="number"
+                      min={0} step={0.5}
+                      value={manualForm.totalHours}
+                      onChange={(e) => setManualForm({ ...manualForm, totalHours: e.target.value })}
+                      className="input font-mono text-xs"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">OT HOURS</label>
+                    <input
+                      type="number"
+                      min={0} step={0.5}
+                      value={manualForm.otHours}
+                      onChange={(e) => setManualForm({ ...manualForm, otHours: e.target.value })}
+                      className="input font-mono text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
                 <motion.button
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleDownloadPDF}
-                  disabled={generating}
-                  className="w-full btn btn-primary h-10 text-[10px] font-extrabold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    if (!manualForm.fullName || !manualForm.employeeId) {
+                      setError('Please fill in Full Name and Employee ID for manual employee payslip.');
+                      return;
+                    }
+                    setError('');
+                    setSelectedEmployee('');
+                    setPayslipData(null);
+                    setIsManualMode(true);
+                    setSuccess('Loaded manual unregistered employee payslip.');
+                  }}
+                  className="w-full btn btn-secondary h-10 text-[10px] font-extrabold cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {generating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                  {generating ? 'GENERATING PDF…' : 'DOWNLOAD PAYSLIP PDF'}
+                  <UserCheck className="w-3.5 h-3.5 text-[#ef4444]" />
+                  PREVIEW MANUAL PAYSLIP
                 </motion.button>
-              )}
+
+                {isManualMode && preview && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleDownloadPDF}
+                    disabled={generating}
+                    className="w-full btn btn-primary h-10 text-[10px] font-extrabold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {generating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    {generating ? 'GENERATING PDF…' : 'DOWNLOAD PAYSLIP PDF'}
+                  </motion.button>
+                )}
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
         {/* ── Right: Payslip Preview ── */}
         <motion.div
@@ -356,6 +719,7 @@ export default function PayslipPage() {
 
           {preview && !loading && (
             <motion.div
+              id="payslip-preview-card"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={springTransition}
