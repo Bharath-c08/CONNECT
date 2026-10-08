@@ -109,6 +109,7 @@ export default function UserDirectoryPage() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
+  const [importErrorsList, setImportErrorsList] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
 
   const handleDownloadSample = () => {
@@ -227,6 +228,7 @@ export default function UserDirectoryPage() {
     setImportLoading(true);
     setImportError('');
     setImportSuccess('');
+    setImportErrorsList([]);
 
     try {
       const res = await apiRequest('/users/import', {
@@ -236,6 +238,9 @@ export default function UserDirectoryPage() {
       });
 
       setImportSuccess(res.message);
+      if (res.results && res.results.errors && res.results.errors.length > 0) {
+        setImportErrorsList(res.results.errors);
+      }
       fetchUsers();
       
       // Clear file
@@ -1378,6 +1383,17 @@ export default function UserDirectoryPage() {
                 {importError && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded text-[10px] uppercase font-extrabold tracking-wider">
                     // ERROR: {importError}
+                  </div>
+                )}
+
+                {importErrorsList.length > 0 && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-[10px] space-y-1 max-h-36 overflow-y-auto">
+                    <span className="font-bold text-rose-400 uppercase tracking-wider block">// DETAILED FAILURE REASONS:</span>
+                    {importErrorsList.map((errItem: any, idx: number) => (
+                      <div key={idx} className="text-slate-300 font-mono text-[9px]">
+                        • <strong className="text-white">{errItem.identifier}:</strong> {errItem.message}
+                      </div>
+                    ))}
                   </div>
                 )}
 
