@@ -408,6 +408,32 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password.toString(), salt);
 
+      // Resolve assignedAdmin if string provided (by ObjectId, employeeId, username, or name in parentheses)
+      let resolvedAdminId = undefined;
+      if (assignedAdmin && typeof assignedAdmin === 'string' && assignedAdmin.trim()) {
+        const cleanAdmin = assignedAdmin.trim();
+        if (mongoose.Types.ObjectId.isValid(cleanAdmin) && cleanAdmin.length === 24) {
+          resolvedAdminId = cleanAdmin;
+        } else {
+          // Extract code inside parentheses if present, e.g. "SREEMATHI (MDM001)" -> "MDM001"
+          const parenMatch = cleanAdmin.match(/\(([^)]+)\)/);
+          const searchToken = parenMatch ? parenMatch[1].trim() : cleanAdmin;
+
+          const adminDoc = await User.findOne({
+            $or: [
+              { employeeId: searchToken },
+              { username: searchToken },
+              { employeeId: cleanAdmin },
+              { username: cleanAdmin },
+              { fullName: { $regex: new RegExp(`^${cleanAdmin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }
+            ]
+          });
+          if (adminDoc) {
+            resolvedAdminId = adminDoc._id;
+          }
+        }
+      }
+
       const newUser = new User({
         username,
         password: hashedPassword,
@@ -430,7 +456,7 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         shiftStartTime: shiftStartTime || '09:00',
         shiftEndTime: shiftEndTime || '17:00',
         breakLimitMinutes: breakLimitMinutes !== undefined ? Number(breakLimitMinutes) : undefined,
-        assignedAdmin: assignedAdmin || undefined,
+        assignedAdmin: resolvedAdminId,
         leaveLimits,
       });
 
