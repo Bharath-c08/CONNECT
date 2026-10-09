@@ -371,6 +371,15 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       shiftStartTime,
       shiftEndTime,
       breakLimitMinutes,
+      panDetails,
+      aadhaarDetails,
+      bankAccountNumber,
+      accountHolderFullName,
+      ifscCode,
+      branchName,
+      bloodGroup,
+      emergencyContactName,
+      emergencyContactNumber,
     } = userObj;
 
     // Required fields validation
@@ -458,6 +467,15 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
         shiftEndTime: shiftEndTime || '17:00',
         breakLimitMinutes: breakLimitMinutes !== undefined ? Number(breakLimitMinutes) : undefined,
         assignedAdmin: resolvedAdminId,
+        panDetails,
+        aadhaarDetails,
+        bankAccountNumber,
+        accountHolderFullName,
+        ifscCode,
+        branchName,
+        bloodGroup,
+        emergencyContactName,
+        emergencyContactNumber,
         leaveLimits,
       });
 
