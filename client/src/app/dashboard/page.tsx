@@ -27,6 +27,8 @@ import confetti from 'canvas-confetti';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { apiRequest, getSocketUrl } from '../../utils/api';
 import { motion } from 'framer-motion';
+import ActivityMonitoringWidget from '../../components/ActivityMonitoringWidget';
+import { activityTracker } from '../../utils/activityTracker';
 
 const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
 
@@ -298,8 +300,19 @@ export default function DashboardPage() {
     setError('');
     try {
       if (clockedIn) {
-        // Clock Out
-        await apiRequest('/clock/out', { method: 'POST' });
+        // Clock Out - gather tracker telemetry and submit to clock out
+        const trackerData = activityTracker.getState();
+        await apiRequest('/clock/out', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idleDuration: Math.round(trackerData.idleDurationSeconds / 60),
+            idleIntervals: trackerData.idleIntervals,
+            activityStats: trackerData.activityStats,
+            performanceTelemetry: trackerData.performance
+          })
+        });
+        activityTracker.stopShift();
         setClockedIn(false);
         setActiveSession(null);
         
@@ -336,6 +349,7 @@ export default function DashboardPage() {
       setError(err.message || 'CLOCK TELEMETRY FAULT.');
     }
   };
+
 
   const triggerClockIn = async (location: any) => {
     const data = await apiRequest('/clock/in', {
@@ -863,11 +877,21 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
+        {/* ── Mouse Tracker & Activity Monitoring Widget ── */}
+        <motion.div variants={cardVariants} className="lg:col-span-2">
+          <ActivityMonitoringWidget
+            clockedIn={clockedIn}
+            activeSession={activeSession}
+            elapsedSeconds={elapsedSeconds}
+            breakElapsedTime={breakElapsedTime}
+          />
+        </motion.div>
+
         {/* ── Shift Analytics Chart ── */}
         <motion.div 
           variants={cardVariants}
           whileHover={{ y: -2 }}
-          className="card lg:col-span-2 flex flex-col gap-5"
+          className="card lg:col-span-3 flex flex-col gap-5"
         >
           <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_02 // LOAD_WAVE_ANALYSER</div>
           
@@ -1159,36 +1183,57 @@ export default function DashboardPage() {
         <motion.div 
           variants={cardVariants}
           whileHover={{ y: -2 }}
-          className="card flex flex-col gap-5"
+          className="card flex flex-col gap-5 border-cyan-500/20 shadow-lg shadow-purple-500/5 relative overflow-hidden"
         >
           <div className="absolute top-1 left-2 text-[7px] font-mono opacity-25">MODULE_08 // AI_CORE_ASSISTANT</div>
           
           <div className="flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center text-purple-400">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-md shadow-purple-500/10">
+                <Sparkles className="w-4 h-4 animate-pulse" />
               </div>
               <div className="font-mono">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">CONNECT_AI</p>
-                <p className="text-[11px] font-extrabold mt-0.5 text-slate-400">HR Assistant & Standup</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">CONNECT_AI</p>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                </div>
+                <p className="text-[11px] font-extrabold mt-0.5 text-slate-300">Workplace & HR Command</p>
               </div>
             </div>
             <Link
               href="/dashboard/ai"
-              className="flex items-center gap-0.5 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline text-purple-400"
+              className="flex items-center gap-1 text-[10px] font-mono font-bold tracking-widest uppercase hover:underline text-cyan-400 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20"
             >
-              <span>AI_CONSOLE</span><ChevronRight className="w-3.5 h-3.5" />
+              <span>OPEN_CONSOLE</span><ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <div className="p-3 rounded bg-zinc-950/40 border border-slate-800 font-mono text-[10px] space-y-2">
-            <div className="flex items-center gap-2 text-cyan-400 font-bold">
-              <Bot className="w-3.5 h-3.5" />
-              <span>HR & Policy Uplink Active</span>
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 font-mono text-[10px] space-y-2.5">
+            <div className="flex items-center justify-between text-cyan-400 font-bold">
+              <div className="flex items-center gap-2">
+                <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Neural HR Mesh Online</span>
+              </div>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">v2.4</span>
             </div>
-            <p className="text-slate-400 leading-relaxed">
-              Ask questions about leave limits, overtime pay, or click to auto-build your daily standup post.
+            <p className="text-slate-400 leading-relaxed font-sans text-xs">
+              Instant AI HR policy queries, automated daily standups, workload burnout monitoring, and official policy database.
             </p>
+            
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Link
+                href="/dashboard/ai?tab=chat"
+                className="py-1.5 px-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[10px] font-bold text-center transition-all"
+              >
+                💬 Ask HR AI
+              </Link>
+              <Link
+                href="/dashboard/ai?tab=standup"
+                className="py-1.5 px-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold text-center transition-all"
+              >
+                📝 Auto Standup
+              </Link>
+            </div>
           </div>
         </motion.div>
 

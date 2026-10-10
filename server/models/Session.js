@@ -34,9 +34,27 @@ const SessionSchema = new mongoose.Schema(
     needsApproval: { type: Boolean, default: false },
     approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'] },
     autoClockedOut: { type: Boolean, default: false },
-    timezone: { type: String, default: 'Asia/Kolkata' }
+    timezone: { type: String, default: 'Asia/Kolkata' },
+    idleDuration: { type: Number, default: 0 }, // Idle duration in minutes
+    idleIntervals: [{
+      startedAt: { type: Date, required: true },
+      endedAt: { type: Date },
+      durationSeconds: { type: Number, default: 0 }
+    }],
+    lastActivityAt: { type: Date },
+    activityStats: {
+      mouseMovements: { type: Number, default: 0 },
+      mouseClicks: { type: Number, default: 0 },
+      keyPresses: { type: Number, default: 0 }
+    },
+    performanceTelemetry: {
+      cpuLatencyMs: { type: Number, default: 0 },
+      memoryUsageMb: { type: Number, default: 0 },
+      monitoringStatus: { type: String, default: 'Stopped' }
+    }
   },
   { timestamps: true }
 );
 
 export default mongoose.model('Session', SessionSchema);
+

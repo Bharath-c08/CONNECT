@@ -165,6 +165,7 @@ router.post('/in', verifyToken, async (req, res) => {
 // @route   POST /api/clock/out
 // @desc    End a clock-in session without pay calculations
 router.post('/out', verifyToken, async (req, res) => {
+  const { idleDuration, idleIntervals, activityStats, performanceTelemetry } = req.body || {};
   try {
     const activeSession = await Session.findOne({
       userId: req.user.userId,
@@ -201,12 +202,32 @@ router.post('/out', verifyToken, async (req, res) => {
       userBreakLimit
     );
 
+    if (idleDuration !== undefined) {
+      activeSession.idleDuration = Number(idleDuration);
+    }
+    if (idleIntervals && Array.isArray(idleIntervals)) {
+      activeSession.idleIntervals = idleIntervals;
+    }
+    if (activityStats) {
+      activeSession.activityStats = activityStats;
+    }
+    if (performanceTelemetry) {
+      activeSession.performanceTelemetry = performanceTelemetry;
+    }
+
+    // Productive duration excludes idle minutes if idle recorded
+    const finalIdleMins = activeSession.idleDuration || 0;
+    const productiveNetWorkingMins = Math.max(0, netWorkingMins - Math.round(finalIdleMins));
+
     activeSession.clockOut = clockOutTime;
-    activeSession.duration = netWorkingMins;
+    activeSession.duration = productiveNetWorkingMins;
     activeSession.overtimeMinutes = 0;
     activeSession.regularPay = 0;
     activeSession.overtimePay = 0;
     activeSession.status = 'completed';
+    if (activeSession.performanceTelemetry) {
+      activeSession.performanceTelemetry.monitoringStatus = 'Stopped';
+    }
 
     await activeSession.save();
 
@@ -219,14 +240,55 @@ router.post('/out', verifyToken, async (req, res) => {
       message: 'Clocked out successfully',
       session: activeSession,
       summary: {
-        totalHours: (netWorkingMins / 60).toFixed(2),
-        durationMinutes: netWorkingMins
+        totalHours: (productiveNetWorkingMins / 60).toFixed(2),
+        durationMinutes: productiveNetWorkingMins,
+        idleDurationMinutes: finalIdleMins
       },
     });
   } catch (error) {
     res.status(500).json({ message: 'Error during clock out', error: error.message });
   }
 });
+
+// @route   POST /api/clock/telemetry
+// @desc    Batch update shift activity and performance telemetry
+router.post('/telemetry', verifyToken, async (req, res) => {
+  const { idleDuration, idleIntervals, lastActivityAt, activityStats, performanceTelemetry } = req.body;
+  try {
+    const activeSession = await Session.findOne({
+      userId: req.user.userId,
+      status: { $in: ['active', 'on_break'] },
+    });
+
+    if (!activeSession) {
+      return res.status(404).json({ message: 'No active shift session found.' });
+    }
+
+    if (idleDuration !== undefined) activeSession.idleDuration = Number(idleDuration);
+    if (idleIntervals && Array.isArray(idleIntervals)) activeSession.idleIntervals = idleIntervals;
+    if (lastActivityAt) activeSession.lastActivityAt = new Date(lastActivityAt);
+    if (activityStats) {
+      activeSession.activityStats = {
+        mouseMovements: activityStats.mouseMovements || 0,
+        mouseClicks: activityStats.mouseClicks || 0,
+        keyPresses: activityStats.keyPresses || 0
+      };
+    }
+    if (performanceTelemetry) {
+      activeSession.performanceTelemetry = {
+        cpuLatencyMs: performanceTelemetry.cpuLatencyMs || 0,
+        memoryUsageMb: performanceTelemetry.memoryUsageMb || 0,
+        monitoringStatus: performanceTelemetry.monitoringStatus || 'Active'
+      };
+    }
+
+    await activeSession.save();
+    res.json({ message: 'Telemetry recorded successfully', session: activeSession });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating telemetry', error: error.message });
+  }
+});
+
 
 // @route   GET /api/clock/history
 // @desc    Get the clock-in history of the logged in user

@@ -23,17 +23,17 @@ function processHrQuery(query, user, tasks, leaves, recentSessions) {
     const pendingLeaves = leaves.filter((l) => l.status === 'pending').length;
     const approvedLeaves = leaves.filter((l) => l.status === 'approved').length;
 
-    return `📋 **Your Leave Summary & HR Policy:**
+    return `📋 Your Leave Summary & HR Policy:
 
-- **Sick Leave Protocol**: ${sickDays} days/year allocated.
-- **Casual Disconnect**: ${casualDays} days/year allocated.
-- **Annual Vacation**: ${annualDays} days/year allocated.
+- Sick Leave Protocol: ${sickDays} days/year allocated.
+- Casual Disconnect: ${casualDays} days/year allocated.
+- Annual Vacation: ${annualDays} days/year allocated.
 
-**Your Current Status**:
-- Approved Leaves Logged: **${approvedLeaves}**
-- Pending Requests: **${pendingLeaves}**
+Your Current Status:
+- Approved Leaves Logged: ${approvedLeaves}
+- Pending Requests: ${pendingLeaves}
 
-*Policy Note*: Leave requests must be submitted at least 24 hours in advance for casual departures, or as early as possible for medical emergencies.`;
+Policy Note: Leave requests must be submitted at least 24 hours in advance for casual departures, or as early as possible for medical emergencies.`;
   }
 
   // 2. Shift Hours & Overtime Queries
@@ -43,14 +43,14 @@ function processHrQuery(query, user, tasks, leaves, recentSessions) {
     const shiftStart = user.shiftStartTime || '09:00';
     const shiftEnd = user.shiftEndTime || '17:00';
 
-    return `⏱️ **Shift Telemetry & Overtime Policy:**
+    return `⏱️ Shift Telemetry & Overtime Policy:
 
-- **Standard Shift Schedule**: ${shiftStart} – ${shiftEnd} (${user.regularShiftLimit || 8} Hours Cap)
-- **Overtime Status**: ${isOtEligible}
-- **OT Wage Rate**: ${otRate}
-- **Monthly Base Wage**: ₹${user.basicPay || 0} / month
+- Standard Shift Schedule: ${shiftStart} – ${shiftEnd} (${user.regularShiftLimit || 8} Hours Cap)
+- Overtime Status: ${isOtEligible}
+- OT Wage Rate: ${otRate}
+- Monthly Base Wage: ₹${user.basicPay || 0} / month
 
-*Policy Note*: Auto-clock out triggers 5 minutes after shift end time. Overtime shifts require prior supervisory approval.`;
+Policy Note: Auto-clock out triggers 5 minutes after shift end time. Overtime shifts require prior supervisory approval.`;
   }
 
   // 3. Task & Mission Queries
@@ -59,33 +59,33 @@ function processHrQuery(query, user, tasks, leaves, recentSessions) {
     const completedTasks = tasks.filter((t) => t.status === 'completed');
 
     if (activeTasks.length === 0) {
-      return `✅ **Mission Pipeline Clean!**\n\nYou currently have no active pending tasks. Total completed tasks: **${completedTasks.length}**.`;
+      return `✅ Mission Pipeline Clean!\n\nYou currently have no active pending tasks. Total completed tasks: ${completedTasks.length}.`;
     }
 
     const topTask = activeTasks[0];
-    return `🎯 **Current Task Pipeline Summary:**
+    return `🎯 Current Task Pipeline Summary:
 
-You have **${activeTasks.length}** active tasks pending:
-- **Top Priority**: "${topTask.title}" (Priority: **${topTask.priority || 'Medium'}**, Status: **${topTask.status}**)
-- **Completed Missions**: **${completedTasks.length}**
+You have ${activeTasks.length} active tasks pending:
+- Top Priority: "${topTask.title}" (Priority: ${topTask.priority || 'Medium'}, Status: ${topTask.status})
+- Completed Missions: ${completedTasks.length}
 
-*AI Recommendation*: Focus on completing "${topTask.title}" next to maintain optimal team velocity.`;
+AI Recommendation: Focus on completing "${topTask.title}" next to maintain optimal team velocity.`;
   }
 
   // 4. General HR & Workplace Assistance
-  return `🤖 **CONNECT AI HR Assistant Response:**
+  return `🤖 CONNECT AI HR Assistant Response:
 
-Based on your profile as **${user.fullName}** (${user.jobTitle || 'Operator'}):
+Based on your profile as ${user.fullName} (${user.jobTitle || 'Operator'}):
 
-- **Employee ID**: ${user.employeeId}
-- **Employment Contract**: ${(user.employmentType || 'fulltime').toUpperCase()}
-- **Department/Role**: ${user.role?.toUpperCase() || 'USER'}
+- Employee ID: ${user.employeeId}
+- Employment Contract: ${(user.employmentType || 'fulltime').toUpperCase()}
+- Department/Role: ${user.role?.toUpperCase() || 'USER'}
 
 You can ask me about:
-1. 📅 **Leave Balances & Policies** ("What is my leave balance?")
-2. ⏱️ **Shift Schedules & Overtime** ("How is my overtime calculated?")
-3. 🎯 **Task Pipelines & Daily Standups** ("Generate my daily standup")
-4. ⚡ **Workload & Burnout Risk** ("Check my burnout risk")`;
+1. 📅 Leave Balances & Policies ("What is my leave balance?")
+2. ⏱️ Shift Schedules & Overtime ("How is my overtime calculated?")
+3. 🎯 Task Pipelines & Daily Standups ("Generate my daily standup")
+4. ⚡ Workload & Burnout Risk ("Check my burnout risk")`;
 }
 
 // POST /api/ai/chat - Context-aware HR & Policy Assistant
@@ -184,17 +184,17 @@ router.post('/standup', verifyToken, async (req, res) => {
         ? activeTasks.map((t) => `- ⏳ ${t.title} (${t.priority || 'Medium'} Priority)`).join('\n')
         : '- Finalize remaining mission capsules and team code reviews.';
 
-    const standupMarkdown = `### 🚀 Daily Standup Report — ${userName}
-*Date*: ${new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+    const standupMarkdown = `🚀 Daily Standup Report — ${userName}
+Date: ${new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
 
-**1. What I accomplished today:**
+1. What I accomplished today:
 ${completedList}
-- Shift Duration Logged: **${hoursWorked} Hours**
+- Shift Duration Logged: ${hoursWorked} Hours
 
-**2. What I am working on next:**
+2. What I am working on next:
 ${activeList}
 
-**3. Blockers / Dependencies:**
+3. Blockers / Dependencies:
 - None currently. Shift telemetry and mission uplink running smoothly.`;
 
     if (mongoose.connection.readyState === 1 && user) {
@@ -283,18 +283,173 @@ router.get('/burnout-risk', verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/ai/history - Get user's AI query log history
-router.get('/history', verifyToken, async (req, res) => {
+// GET /api/ai/colleague-report/:targetUserId - Admin AI Performance & Telemetry Report
+router.get('/colleague-report/:targetUserId', verifyToken, async (req, res) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.json([]);
+    const targetUserId = req.params.targetUserId;
+    const { period, startDate, endDate } = req.query;
+
+    let queryStartDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    let queryEndDate = new Date();
+    let periodLabel = '14-Day Audit';
+
+    if (period === 'daily') {
+      queryStartDate = new Date();
+      queryStartDate.setHours(0, 0, 0, 0);
+      periodLabel = 'Daily Audit (Today)';
+    } else if (period === 'weekly') {
+      queryStartDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      periodLabel = 'Weekly Audit (Past 7 Days)';
+    } else if (period === 'monthly') {
+      queryStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      periodLabel = 'Monthly Audit (Past 30 Days)';
+    } else if (period === 'custom' && startDate && endDate) {
+      queryStartDate = new Date(startDate);
+      queryEndDate = new Date(endDate);
+      queryEndDate.setHours(23, 59, 59, 999);
+      periodLabel = `Custom Audit (${queryStartDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} – ${queryEndDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })})`;
     }
-    const userId = req.user.userId;
-    const logs = await AiLog.find({ userId }).sort({ createdAt: -1 }).limit(20);
-    res.json(logs || []);
+
+    // Check if user exists
+    let user = null;
+    let tasks = [];
+    let leaves = [];
+    let sessions = [];
+
+    if (mongoose.connection.readyState === 1) {
+      [user, tasks, leaves, sessions] = await Promise.all([
+        User.findById(targetUserId).select('-password'),
+        Task.find({ assignedTo: targetUserId }),
+        LeaveRequest.find({ userId: targetUserId, createdAt: { $gte: queryStartDate, $lte: queryEndDate } }),
+        Session.find({ userId: targetUserId, clockIn: { $gte: queryStartDate, $lte: queryEndDate } }),
+      ]);
+    }
+
+    if (!user) {
+      user = {
+        _id: targetUserId,
+        fullName: 'Operator',
+        employeeId: 'EMP-001',
+        jobTitle: 'Team Specialist',
+        role: 'user',
+        employmentType: 'fulltime',
+        basicPay: 45000,
+        leaveLimits: new Map([
+          ['sick', 10],
+          ['casual', 10],
+          ['annual', 15],
+        ]),
+      };
+    }
+
+    // Task Analytics
+    const completedTasks = tasks.filter((t) => t.status === 'completed');
+    const pendingTasks = tasks.filter((t) => t.status !== 'completed');
+    const totalTasks = tasks.length;
+    const taskVelocity = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 100;
+    const highPriorityPending = pendingTasks.filter((t) => t.priority === 'High' || t.priority === 'Critical').length;
+
+    // Leave Analytics
+    const approvedLeaves = leaves.filter((l) => l.status === 'approved');
+    const pendingLeaves = leaves.filter((l) => l.status === 'pending');
+    const rejectedLeaves = leaves.filter((l) => l.status === 'rejected');
+
+    const limits = user.leaveLimits ? Object.fromEntries(user.leaveLimits) : {};
+    const sickLimit = limits.sick || 10;
+    const casualLimit = limits.casual || 10;
+    const annualLimit = limits.annual || 15;
+
+    const sickUsed = approvedLeaves.filter((l) => l.leaveType === 'sick').length;
+    const casualUsed = approvedLeaves.filter((l) => l.leaveType === 'casual').length;
+    const annualUsed = approvedLeaves.filter((l) => l.leaveType === 'annual').length;
+
+    // Shift Telemetry
+    const totalMinutes = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+    const totalHours = parseFloat((totalMinutes / 60).toFixed(1));
+    const totalSessions = sessions.length;
+    const avgDailyHours = totalSessions ? parseFloat((totalHours / totalSessions).toFixed(1)) : 0;
+    const otMinutes = sessions.reduce((acc, s) => acc + (s.overtimeMinutes || 0), 0);
+    const otHours = parseFloat((otMinutes / 60).toFixed(1));
+
+    // Burnout Risk Score
+    let riskLevel = 'Low';
+    let riskScore = 20;
+    let riskRecommendation = 'Operator maintains balanced shift hours and healthy rest intervals.';
+
+    if (avgDailyHours > 10 || totalHours > 90 || otHours > 15) {
+      riskLevel = 'High';
+      riskScore = 85;
+      riskRecommendation = '⚠️ High Overtime & Shift Load Detected! Recommend granting rest pause or casual disconnect.';
+    } else if (avgDailyHours > 8.5 || totalHours > 70 || otHours > 5) {
+      riskLevel = 'Moderate';
+      riskScore = 55;
+      riskRecommendation = 'Shift workload is elevated. Ensure shift breaks are strictly adhered to.';
+    }
+
+    // Performance Index Calculation (0-100)
+    let performanceScore = Math.min(100, Math.round(taskVelocity * 0.5 + (avgDailyHours > 0 ? 40 : 20) + (100 - riskScore) * 0.1));
+
+    // AI Executive Summary
+    const executiveSummary = `📊 CONNECT AI Operator Evaluation (${periodLabel}): ${user.fullName} (${user.employeeId})
+Role: ${user.jobTitle || 'Team Operator'} | Grade: ${user.role?.toUpperCase() || 'USER'}
+
+1. Velocity & Mission Pipeline:
+- Task Resolution Rate: ${taskVelocity}% (${completedTasks.length} solved out of ${totalTasks} assigned)
+- Pending Priority Missions: ${pendingTasks.length} (${highPriorityPending} High/Critical priority)
+
+2. Attendance & Shift Telemetry:
+- ${periodLabel} Shift Volume: ${totalHours} Hours across ${totalSessions} sessions
+- Average Daily Shift: ${avgDailyHours} Hrs/Day
+- Overtime Hours Accrued: ${otHours} Hours
+
+3. Leave Utilization & Compliance:
+- Sick Leave: ${sickUsed} / ${sickLimit} Days Used
+- Casual Disconnect: ${casualUsed} / ${casualLimit} Days Used
+- Annual Vacation: ${annualUsed} / ${annualLimit} Days Used
+- Pending Time-off Requests: ${pendingLeaves.length}
+
+4. Executive Admin Verdict:
+${performanceScore >= 80 ? '🌟 Outstanding Operator Performance: High task execution velocity with steady shift presence.' : performanceScore >= 60 ? '👍 Satisfactory Operator Performance: Meets standard velocity expectations.' : '⚠️ Operator Needs Attention: Low mission velocity or irregular shift telemetry.'}`;
+
+    res.json({
+      user,
+      periodLabel,
+      tasks: {
+        total: totalTasks,
+        completed: completedTasks.length,
+        pending: pendingTasks.length,
+        velocity: taskVelocity,
+        highPriorityPending,
+        activeTasksList: pendingTasks,
+      },
+      leaves: {
+        approvedCount: approvedLeaves.length,
+        pendingCount: pendingLeaves.length,
+        rejectedCount: rejectedLeaves.length,
+        sickUsed,
+        sickLimit,
+        casualUsed,
+        casualLimit,
+        annualUsed,
+        annualLimit,
+      },
+      shiftTelemetry: {
+        totalHours,
+        avgDailyHours,
+        otHours,
+        totalSessions,
+      },
+      burnout: {
+        riskLevel,
+        riskScore,
+        recommendation: riskRecommendation,
+      },
+      performanceScore,
+      executiveSummary,
+    });
   } catch (error) {
-    console.error('Error fetching AI log history:', error);
-    res.json([]);
+    console.error('Error generating colleague report:', error);
+    res.status(500).json({ message: 'Failed to generate colleague report', error: error.message });
   }
 });
 

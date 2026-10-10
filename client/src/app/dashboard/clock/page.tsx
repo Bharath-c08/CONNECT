@@ -901,6 +901,7 @@ export default function TimesheetsPage() {
                         <th className="py-3.5 px-5">SHIFT_IN</th>
                         <th className="py-3.5 px-5">SHIFT_OUT</th>
                         <th className="py-3.5 px-5 text-center">CLOCK_IN_TIME</th>
+                        <th className="py-3.5 px-5 text-center">IDLE_TIME</th>
                         <th className="py-3.5 px-5 text-center">BREAK_TIME</th>
                         <th className="py-3.5 px-5 text-center">NET_WORKING</th>
                         <th className="py-3.5 px-5 text-center">LINK_STATUS</th>
@@ -940,6 +941,9 @@ export default function TimesheetsPage() {
                             </td>
                             <td className="py-3 px-5 text-center font-mono">
                               {formatMinutesToHoursAndMins(totalSessionMins)}
+                            </td>
+                            <td className="py-3 px-5 text-center font-mono text-orange-400">
+                              {formatMinutesToHoursAndMins(session.idleDuration || 0)}
                             </td>
                             <td className="py-3 px-5 text-center font-mono text-amber-400">
                               {formatMinutesToHoursAndMins(session.userId?.breakLimitMinutes ?? 0)} ({session.breaks?.length || 0} breaks)
