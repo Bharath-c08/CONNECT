@@ -99,19 +99,35 @@ export default function OnboardingPage() {
   // Initial Data Fetching
   const fetchEmployeeData = async () => {
     try {
-      const [docsData, archiveData, meData] = await Promise.all([
-        apiRequest('/documents/my'),
-        apiRequest('/documents/signatures/my'),
-        apiRequest('/auth/me')
-      ]);
+      // 1. Fetch user profile first so ID card and identity always display
+      try {
+        const meData = await apiRequest('/auth/me');
+        if (meData) setCurrentUser(meData);
+      } catch (meErr) {
+        console.warn('Could not fetch user profile:', meErr);
+      }
 
-      setDocuments(docsData.documents || []);
-      setPendingCount(docsData.pendingCount || 0);
-      setSignedArchive(archiveData || []);
-      setCurrentUser(meData);
+      // 2. Fetch assigned documents
+      try {
+        const docsData = await apiRequest('/documents/my');
+        setDocuments(docsData?.documents || []);
+        setPendingCount(docsData?.pendingCount || 0);
+      } catch (docsErr: any) {
+        console.warn('Assigned documents endpoint unavailable:', docsErr);
+        setDocuments([]);
+        setPendingCount(0);
+      }
+
+      // 3. Fetch signatures archive
+      try {
+        const archiveData = await apiRequest('/documents/signatures/my');
+        setSignedArchive(archiveData || []);
+      } catch (archErr: any) {
+        console.warn('Signatures archive endpoint unavailable:', archErr);
+        setSignedArchive([]);
+      }
     } catch (err: any) {
-      console.error('Error fetching onboarding data:', err);
-      setError(err.message || 'Failed to load employee onboarding documents.');
+      console.error('Error in fetchEmployeeData:', err);
     }
   };
 

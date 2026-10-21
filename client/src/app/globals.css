@@ -915,23 +915,109 @@ body.light .events-card-container .relative.overflow-hidden.rounded-lg .text-pin
     print-color-adjust: exact !important;
   }
 
-  /* ID Card Wallet Print styling */
-  #printable-id-card-zone {
-    display: flex !important;
-    flex-direction: row !important;
-    justify-content: center !important;
-    gap: 15mm !important;
-    margin: 0 auto !important;
-    padding: 10mm 0 !important;
-    background: transparent !important;
+  /* =====================================================
+     CR80 ID CARD ISOLATED PRINT ENGINE
+     ===================================================== */
+  body.printing-id-card {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
+  body.printing-id-card * {
+    visibility: hidden;
+  }
+
+  body.printing-id-card #printable-id-card-zone,
+  body.printing-id-card #printable-id-card-zone * {
+    visibility: visible;
+  }
+
+  body.printing-id-card #printable-id-card-zone {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  /* CR80 Card badge print appearance */
   .id-card-badge {
-    box-shadow: 0 0 0 1px #94a3b8 !important;
+    box-shadow: 0 0 0 1px #cbd5e1 !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* Mode 1: Two Pages (Duplex / Separate Pages) */
+  #printable-id-card-zone.print-mode-twopage {
+    display: block !important;
+    text-align: center !important;
+  }
+
+  #printable-id-card-zone.print-mode-twopage .id-card-front {
+    display: flex !important;
+    margin: 15mm auto !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-id-card-zone.print-mode-twopage .id-card-page-break {
+    display: block !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #printable-id-card-zone.print-mode-twopage .id-card-back {
+    display: flex !important;
+    margin: 15mm auto !important;
+    page-break-before: always !important;
+    break-before: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Mode 2: Single Page (Side-by-Side) */
+  #printable-id-card-zone.print-mode-sidebyside {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 12mm !important;
+    margin: 15mm auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-id-card-zone.print-mode-sidebyside .id-card-page-break {
+    display: none !important;
+  }
+
+  /* Mode 3 & 4: Single Side Only */
+  #printable-id-card-zone.print-mode-front .id-card-front,
+  #printable-id-card-zone.print-mode-back .id-card-back {
+    display: flex !important;
+    margin: 15mm auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-id-card-zone.print-mode-front .id-card-back,
+  #printable-id-card-zone.print-mode-back .id-card-front,
+  #printable-id-card-zone.print-mode-front .id-card-page-break,
+  #printable-id-card-zone.print-mode-back .id-card-page-break {
+    display: none !important;
+  }
 }
+
 

@@ -33,25 +33,125 @@ const generateCertificateHash = (docId, version, userId, timestamp, ip, verId) =
 };
 
 // ==========================================
-// PUBLIC UNTOUCHED ENDPOINT: Document Verification
+// PUBLIC UNTOUCHED ENDPOINT: Document & ID Card Verification
 // ==========================================
+// @route   GET /api/documents/verify-idcard/:employeeId
+// @desc    Public verification lookup for employee identification cards
+// @access  Public (No Auth Required)
+router.get('/verify-idcard/:employeeId', async (req, res) => {
+  try {
+    const rawId = req.params.employeeId.trim();
+    const cleanEmpId = rawId.toUpperCase().replace(/^EMP-/, '');
+
+    const user = await User.findOne({
+      employeeId: { $regex: new RegExp(`^${cleanEmpId}$`, 'i') }
+    }).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        verified: false,
+        type: 'idcard',
+        status: 'Fake / Unregistered ID',
+        message: `No official employee record matches Employee ID "${rawId}" in the company personnel directory.`,
+        employeeId: rawId
+      });
+    }
+
+    res.json({
+      verified: true,
+      type: 'idcard',
+      status: 'Valid Active Credential',
+      fullName: user.fullName,
+      maskedName: maskName(user.fullName),
+      employeeId: user.employeeId,
+      jobTitle: user.jobTitle || 'Technical Operator',
+      employmentType: user.employmentType || 'fulltime',
+      bloodGroup: user.bloodGroup || 'O+',
+      joiningDate: user.joiningDate,
+      profilePhoto: user.profilePhoto || '',
+      issuer: 'Markdot Intellect Inc. Credential Authority',
+      systemGenerated: true,
+      verifiedAt: new Date()
+    });
+  } catch (error) {
+    res.status(500).json({
+      verified: false,
+      type: 'idcard',
+      status: 'Verification Error',
+      message: 'Failed to verify employee identification card.',
+      error: error.message
+    });
+  }
+});
+
 // @route   GET /api/documents/verify/:verificationId
-// @desc    Public verification lookup for QR codes and certificate hashes
+// @desc    Public verification lookup for QR codes and certificate hashes (Documents or ID Cards)
 // @access  Public (No Auth Required)
 router.get('/verify/:verificationId', async (req, res) => {
   try {
     const { verificationId } = req.params;
     const cleanId = verificationId.trim().toUpperCase();
 
+    // Check if this is an Employee ID query
+    if (cleanId.startsWith('EMP-')) {
+      const cleanEmpId = cleanId.replace(/^EMP-/, '');
+      const user = await User.findOne({
+        employeeId: { $regex: new RegExp(`^${cleanEmpId}$`, 'i') }
+      }).select('-password');
+
+      if (user) {
+        return res.json({
+          verified: true,
+          type: 'idcard',
+          status: 'Valid Active Credential',
+          fullName: user.fullName,
+          maskedName: maskName(user.fullName),
+          employeeId: user.employeeId,
+          jobTitle: user.jobTitle || 'Technical Operator',
+          employmentType: user.employmentType || 'fulltime',
+          bloodGroup: user.bloodGroup || 'O+',
+          joiningDate: user.joiningDate,
+          profilePhoto: user.profilePhoto || '',
+          issuer: 'Markdot Intellect Inc. Credential Authority',
+          systemGenerated: true,
+          verifiedAt: new Date()
+        });
+      }
+    }
+
     const signature = await DocumentSignature.findOne({ verificationId: cleanId })
       .populate('userId', 'fullName employeeId jobTitle email employmentType')
       .populate('documentId', 'title category createdAt');
 
     if (!signature) {
+      // Fallback: check if cleanId matches an employee ID directly
+      const fallbackUser = await User.findOne({
+        employeeId: { $regex: new RegExp(`^${cleanId}$`, 'i') }
+      }).select('-password');
+
+      if (fallbackUser) {
+        return res.json({
+          verified: true,
+          type: 'idcard',
+          status: 'Valid Active Credential',
+          fullName: fallbackUser.fullName,
+          maskedName: maskName(fallbackUser.fullName),
+          employeeId: fallbackUser.employeeId,
+          jobTitle: fallbackUser.jobTitle || 'Technical Operator',
+          employmentType: fallbackUser.employmentType || 'fulltime',
+          bloodGroup: fallbackUser.bloodGroup || 'O+',
+          joiningDate: fallbackUser.joiningDate,
+          profilePhoto: fallbackUser.profilePhoto || '',
+          issuer: 'Markdot Intellect Inc. Credential Authority',
+          systemGenerated: true,
+          verifiedAt: new Date()
+        });
+      }
+
       return res.status(404).json({
         verified: false,
         status: 'Fake / Invalid',
-        message: 'No authentic document record found matching this Verification ID.',
+        message: 'No authentic document or employee credential found matching this Verification ID.',
         verificationId: cleanId
       });
     }
