@@ -192,8 +192,8 @@ export async function generatePayslipPDF(data: PayslipData, elementId?: string):
 
   if (element) {
     try {
-      const html2canvasModule = await import('html2canvas');
-      const html2canvas = html2canvasModule.default;
+      const html2canvasModule = await import('html2canvas-pro');
+      const html2canvas = html2canvasModule.default || html2canvasModule;
 
       const canvas = await html2canvas(element, {
         scale: 3, // 300+ DPI razor-sharp print quality

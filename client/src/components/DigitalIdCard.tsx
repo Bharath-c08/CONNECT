@@ -124,7 +124,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
     setExportStatusText(`Rendering ${target.toUpperCase()} PDF...`);
 
     try {
-      const html2canvasModule = await import('html2canvas');
+      const html2canvasModule = await import('html2canvas-pro');
       const html2canvas = html2canvasModule.default || html2canvasModule;
       const jsPDFModule = await import('jspdf');
       const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF;
@@ -184,7 +184,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
     setExportStatusText(`Rendering ${target.toUpperCase()} Image...`);
 
     try {
-      const html2canvasModule = await import('html2canvas');
+      const html2canvasModule = await import('html2canvas-pro');
       const html2canvas = html2canvasModule.default || html2canvasModule;
 
       const frontEl = document.getElementById('id-card-front-element');
