@@ -915,6 +915,25 @@ body.light .events-card-container .relative.overflow-hidden.rounded-lg .text-pin
     print-color-adjust: exact !important;
   }
 
+  /* Force 2-column layout and prevent page splits in print */
+  .attestation-block {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 16px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .attestation-qr-box {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .cryptographic-footer {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   /* =====================================================
      CR80 ID CARD ISOLATED PRINT ENGINE
      ===================================================== */

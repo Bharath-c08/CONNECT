@@ -342,7 +342,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Peer Kudos', index: '11', href: '/dashboard/kudos', icon: Trophy, role: 'all' },
     { name: 'OKRs & Performance', index: '12', href: '/dashboard/okrs', icon: Target, role: 'all' },
     { name: 'CONNECT AI Assistant', index: '13', href: '/dashboard/ai', icon: Sparkles, role: 'all' },
-    { name: 'Onboarding & ID Card', index: '14', href: '/dashboard/onboarding', icon: ShieldCheck, role: 'all' },
+    { name: 'Identity & Compliance', index: '14', href: '/dashboard/onboarding', icon: ShieldCheck, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link

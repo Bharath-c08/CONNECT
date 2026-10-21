@@ -158,6 +158,21 @@ export default function OnboardingPage() {
     }
   }, [activeTab, isStaff]);
 
+  // Keyboard ESC listener to close open document viewers and modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (viewingPrintable) setViewingPrintable(null);
+        if (readingDoc) setReadingDoc(null);
+        if (docToDelete) setDocToDelete(null);
+        if (showCreateDocModal) setShowCreateDocModal(false);
+        if (auditDoc) setAuditDoc(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewingPrintable, readingDoc, docToDelete, showCreateDocModal, auditDoc]);
+
   // Sign Document Handler
   const handleSignDocument = async () => {
     if (!readingDoc || !consentChecked) return;
@@ -313,7 +328,7 @@ export default function OnboardingPage() {
     <div className="flex flex-col gap-6 font-mono select-none">
       {/* Top Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-zinc-950/60 border border-white/10 relative overflow-hidden backdrop-blur-xl">
-        <div className="absolute top-1 left-2 text-[7px] opacity-25">MODULE_08 // ONBOARDING_AND_VERIFICATION_ENGINE</div>
+        <div className="absolute top-1 left-2 text-[7px] opacity-25">MODULE_08 // IDENTITY_AND_COMPLIANCE_ENGINE</div>
 
         <div className="flex items-center gap-3.5 pt-1">
           <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
@@ -321,10 +336,10 @@ export default function OnboardingPage() {
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-extrabold text-white tracking-widest uppercase flex items-center gap-2">
-              <span>ONBOARDING & DOCUMENT VERIFICATION</span>
+              <span>IDENTITY & COMPLIANCE HUB</span>
             </h2>
             <p className="text-[10px] text-slate-400">
-              Dynamic terms acknowledgment, tamper-proof document hashes, and digital employee ID generator.
+              Dynamic terms acknowledgment, tamper-proof document hashes, and digital employee ID credentials.
             </p>
           </div>
         </div>
@@ -878,37 +893,98 @@ export default function OnboardingPage() {
       {/* ── MODAL: VIEW / PRINT SIGNED DOCUMENT WITH QR ── */}
       {/* ======================================================== */}
       {viewingPrintable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
-          <div className="w-full max-w-4xl rounded-2xl relative my-auto">
-            <div className="flex justify-end pb-3 no-print">
+        <div className="fixed inset-0 z-[99999] flex flex-col bg-black/95 backdrop-blur-2xl overflow-hidden select-none">
+          {/* ── DEDICATED FIXED TOP BAR: ALWAYS PINNED AND VISIBLE ── */}
+          <div className="h-16 shrink-0 flex items-center justify-between px-4 sm:px-8 border-b border-white/10 bg-zinc-950 z-50 no-print shadow-2xl">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-xs font-black uppercase tracking-wider text-white truncate">
+                  {viewingPrintable.doc.title || viewingPrintable.sig.documentTitle}
+                </h3>
+                <span className="text-[8px] text-cyan-400 font-mono tracking-widest uppercase block mt-0.5 truncate">
+                  VERIFICATION ID: {viewingPrintable.sig.verificationId} &bull; CRYPTOGRAPHIC RECORD
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              {/* Top Print Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') window.print();
+                }}
+                className="btn btn-primary h-10 px-5 text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg"
+                style={{
+                  background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)'
+                }}
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Document</span>
+              </button>
+
+              {/* Top Close Button */}
               <button
                 type="button"
                 onClick={() => setViewingPrintable(null)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-extrabold text-xs uppercase flex items-center gap-2 cursor-pointer"
+                className="h-10 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-extrabold text-xs uppercase flex items-center gap-2 cursor-pointer transition-colors border border-white/10 shadow-sm"
+                title="Close document viewer [ESC]"
               >
                 <X className="w-4 h-4" />
-                <span>Close Viewer</span>
+                <span>Close [ESC]</span>
               </button>
             </div>
+          </div>
 
-            <PrintableDocument
-              document={{
-                _id: viewingPrintable.doc._id || 'ARCHIVE',
-                title: viewingPrintable.doc.title || viewingPrintable.sig.documentTitle,
-                category: viewingPrintable.doc.category,
-                content: viewingPrintable.doc.content || viewingPrintable.sig.documentContent || 'Document content archived in Markdot Legal repository.',
-                version: viewingPrintable.sig.documentVersion || viewingPrintable.doc.version || 1,
-                createdAt: viewingPrintable.doc.createdAt
+          {/* ── SCROLLABLE DOCUMENT PREVIEW AREA ── */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+            <div className="max-w-4xl mx-auto py-2">
+              <PrintableDocument
+                document={{
+                  _id: viewingPrintable.doc._id || 'ARCHIVE',
+                  title: viewingPrintable.doc.title || viewingPrintable.sig.documentTitle,
+                  category: viewingPrintable.doc.category,
+                  content: viewingPrintable.doc.content || viewingPrintable.sig.documentContent || 'Document content archived in Markdot Legal repository.',
+                  version: viewingPrintable.sig.documentVersion || viewingPrintable.doc.version || 1,
+                  createdAt: viewingPrintable.doc.createdAt
+                }}
+                signature={viewingPrintable.sig}
+                user={{
+                  fullName: currentUser?.fullName || 'OPERATOR',
+                  employeeId: currentUser?.employeeId || 'NO-ID',
+                  jobTitle: currentUser?.jobTitle,
+                  email: currentUser?.email,
+                  employmentType: currentUser?.employmentType
+                }}
+                onClose={() => setViewingPrintable(null)}
+              />
+            </div>
+          </div>
+
+          {/* ── FLOATING QUICK-ACTION PILL AT BOTTOM RIGHT ── */}
+          <div className="fixed bottom-6 right-8 z-50 flex items-center gap-2 no-print bg-zinc-950/95 border border-white/20 p-2 rounded-2xl shadow-2xl backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') window.print();
               }}
-              signature={viewingPrintable.sig}
-              user={{
-                fullName: currentUser?.fullName || 'OPERATOR',
-                employeeId: currentUser?.employeeId || 'NO-ID',
-                jobTitle: currentUser?.jobTitle,
-                email: currentUser?.email,
-                employmentType: currentUser?.employmentType
-              }}
-            />
+              className="h-9 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewingPrintable(null)}
+              className="h-9 px-3.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer transition-colors border border-white/10"
+              title="Close viewer"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Close</span>
+            </button>
           </div>
         </div>
       )}
