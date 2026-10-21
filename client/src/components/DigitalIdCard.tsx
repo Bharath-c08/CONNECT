@@ -407,7 +407,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
         {/* ======================================================== */}
         <div
           id="id-card-front-element"
-          className={`id-card-badge id-card-front w-[340px] h-[520px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-5 border shadow-2xl text-slate-900 select-text transition-all ${
+          className={`id-card-badge id-card-front w-[340px] h-[520px] rounded-2xl relative overflow-hidden flex flex-col justify-between pt-8 px-5 pb-4 border shadow-2xl text-slate-900 select-text transition-all ${
             activeSide === 'back'
               ? 'fixed -left-[9999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100'
               : 'relative'
@@ -419,20 +419,20 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
           }}
         >
           {/* Top Lanyard Punch Slot Visual Indicator */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-slate-300 border border-slate-400/50" />
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-slate-300 border border-slate-400/50 z-10" />
 
           {/* Micro-Holographic Security Banner */}
           <div
-            className="absolute top-0 left-0 right-0 h-2"
+            className="absolute top-0 left-0 right-0 h-2.5 z-0"
             style={{
               background: 'linear-gradient(90deg, #06b6d4 0%, #d946ef 35%, #10b981 70%, #f59e0b 100%)'
             }}
           />
 
-          {/* Header: Company Seal & Name */}
-          <div className="flex items-center justify-between pt-2 border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-zinc-950 flex items-center justify-center p-1.5 border border-slate-300">
+          {/* Header: Company Seal & Name (Positioned lower to clear top strip) */}
+          <div className="flex items-center justify-between pt-3 border-b border-slate-200 pb-3 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-lg bg-zinc-950 flex items-center justify-center p-1.5 border border-slate-300 shadow-sm shrink-0">
                 <img
                   src="/images/Markdot logo white.png"
                   alt="Logo"
@@ -443,7 +443,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
                 <h3 className="text-xs font-black tracking-tight text-slate-950 uppercase leading-none">
                   MARKDOT INTELLECT
                 </h3>
-                <span className="text-[8px] font-bold text-cyan-700 tracking-widest uppercase">
+                <span className="text-[8px] font-bold text-cyan-700 tracking-widest uppercase block mt-0.5">
                   OFFICIAL CREDENTIAL
                 </span>
               </div>
@@ -532,7 +532,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
         {/* ======================================================= */}
         <div
           id="id-card-back-element"
-          className={`id-card-badge id-card-back w-[340px] h-[520px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-5 border shadow-2xl text-slate-900 select-text transition-all ${
+          className={`id-card-badge id-card-back w-[340px] h-[520px] rounded-2xl relative overflow-hidden flex flex-col justify-between pt-8 px-5 pb-4 border shadow-2xl text-slate-900 select-text transition-all ${
             activeSide === 'front'
               ? 'fixed -left-[9999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100'
               : 'relative'
@@ -544,14 +544,14 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
           }}
         >
           {/* Top Lanyard Slot */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-slate-300 border border-slate-400/50" />
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-slate-300 border border-slate-400/50 z-10" />
 
           {/* Back Header */}
-          <div className="pt-2 border-b border-slate-200 pb-2">
+          <div className="pt-3 border-b border-slate-200 pb-2 relative z-10">
             <span className="text-[8px] font-black text-cyan-800 tracking-widest uppercase block">
               EMPLOYEE CREDENTIAL & EMERGENCY RECORD
             </span>
-            <p className="text-[7px] text-slate-400 uppercase font-semibold">
+            <p className="text-[7px] text-slate-400 uppercase font-semibold mt-0.5">
               This credential is the property of Markdot Intellect Inc.
             </p>
           </div>

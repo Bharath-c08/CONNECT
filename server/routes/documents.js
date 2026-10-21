@@ -597,4 +597,30 @@ router.post('/admin/signatures/:id/revoke', verifyToken, isAdminOrSuperAdmin, as
   }
 });
 
+// @route   DELETE /api/documents/admin/:id
+// @desc    Permanently delete an agreement document and its associated signature audit records
+// @access  Admin/SuperAdmin
+router.delete('/admin/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  try {
+    const doc = await Document.findById(req.params.id);
+    if (!doc) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Cascade delete associated signatures
+    await DocumentSignature.deleteMany({ documentId: doc._id });
+
+    // Permanently remove document
+    await Document.findByIdAndDelete(doc._id);
+
+    res.json({
+      message: `Agreement "${doc.title}" and associated signature records have been deleted successfully.`,
+      deletedId: doc._id
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting agreement', error: error.message });
+  }
+});
+
 export default router;
+
