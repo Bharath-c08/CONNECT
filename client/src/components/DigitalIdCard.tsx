@@ -86,6 +86,10 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
   const cleanEmpId = (user.employeeId || 'EMPLOYEE').replace(/[^a-zA-Z0-9_-]/g, '');
 
   const downloadDataUrl = (dataUrl: string, filename: string) => {
+    if (typeof window !== 'undefined' && (window as any).AndroidInterface?.downloadBase64File) {
+      (window as any).AndroidInterface.downloadBase64File(dataUrl, filename);
+      return;
+    }
     const link = document.createElement('a');
     link.download = filename;
     link.href = dataUrl;
@@ -102,7 +106,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
       images.map(
         (img) =>
           img.complete
-            ? Promise.resolve()
+            ? Promise.resolve(true)
             : new Promise((resolve) => {
                 img.onload = () => resolve(true);
                 img.onerror = () => resolve(true);
@@ -113,6 +117,10 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
 
   // ─── DEDICATED ISOLATED PRINT ENGINE ──────────────────────────────────────
   const handlePrint = async (overrideMode?: 'twopage' | 'sidebyside' | 'front' | 'back') => {
+    if (typeof window !== 'undefined' && (window as any).AndroidInterface?.printDocument) {
+      (window as any).AndroidInterface.printDocument();
+      return;
+    }
     if (typeof window === 'undefined') return;
     const mode = overrideMode || printLayout;
     setPrintLayout(mode);

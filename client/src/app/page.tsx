@@ -178,7 +178,7 @@ export default function LoginPage() {
 
           <div className="mt-8">
             <a
-              href={`${getSocketUrl()}/Dotcore.apk`}
+              href="/Dotcore.apk"
               download="Dotcore.apk"
               className="inline-flex items-center gap-2.5 px-5 py-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all hover:-translate-y-0.5 shadow-sm"
               style={{
