@@ -29,6 +29,7 @@ import { apiRequest, getSocketUrl } from '../../utils/api';
 import { motion } from 'framer-motion';
 import ActivityMonitoringWidget from '../../components/ActivityMonitoringWidget';
 import { activityTracker } from '../../utils/activityTracker';
+import { unlockAudioPlayback } from '../../utils/audio';
 
 const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
 
@@ -306,8 +307,6 @@ export default function DashboardPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            idleDuration: Math.round(trackerData.idleDurationSeconds / 60),
-            idleIntervals: trackerData.idleIntervals,
             activityStats: trackerData.activityStats,
             performanceTelemetry: trackerData.performance
           })
@@ -352,6 +351,9 @@ export default function DashboardPage() {
 
 
   const triggerClockIn = async (location: any) => {
+    // Unlock browser media autoplay restrictions on shift start user gesture
+    unlockAudioPlayback().catch(() => {});
+
     const data = await apiRequest('/clock/in', {
       method: 'POST',
       body: JSON.stringify({ 

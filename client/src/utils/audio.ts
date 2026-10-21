@@ -5,6 +5,8 @@ let ringInterval: NodeJS.Timeout | null = null;
 
 let initialized = false;
 
+let audioUnlocked = false;
+
 const initAudio = () => {
   if (typeof window === 'undefined') return;
   if (!audioCtx) {
@@ -19,18 +21,44 @@ const initAudio = () => {
   initialized = true;
 };
 
-// Warm up the audio context on the very first user interaction
+// Keep audio context active on any user interaction
 if (typeof window !== 'undefined') {
-  const setupAudio = () => {
+  const keepAudioAlive = () => {
     initAudio();
-    window.removeEventListener('click', setupAudio);
-    window.removeEventListener('keydown', setupAudio);
-    window.removeEventListener('touchstart', setupAudio);
+    if (localStorage.getItem('connect_sound_access') === 'enabled') {
+      audioUnlocked = true;
+    }
   };
-  window.addEventListener('click', setupAudio);
-  window.addEventListener('keydown', setupAudio);
-  window.addEventListener('touchstart', setupAudio);
+  window.addEventListener('click', keepAudioAlive, { passive: true });
+  window.addEventListener('keydown', keepAudioAlive, { passive: true });
+  window.addEventListener('touchstart', keepAudioAlive, { passive: true });
 }
+
+export const isAudioUnlocked = () => {
+  if (typeof window === 'undefined') return false;
+  return audioUnlocked || localStorage.getItem('connect_sound_access') === 'enabled';
+};
+
+export const unlockAudioPlayback = async () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      await audioCtx.resume().catch(() => {});
+    }
+    audioUnlocked = true;
+    localStorage.setItem('connect_sound_access', 'enabled');
+    return true;
+  } catch (err) {
+    console.warn('Audio unlock warning:', err);
+    if (audioCtx && audioCtx.state === 'running') {
+      audioUnlocked = true;
+      localStorage.setItem('connect_sound_access', 'enabled');
+      return true;
+    }
+    return false;
+  }
+};
 
 export const playNotificationSound = () => {
   try {
@@ -106,3 +134,6 @@ export const stopRinging = () => {
     ringInterval = null;
   }
 };
+
+
+

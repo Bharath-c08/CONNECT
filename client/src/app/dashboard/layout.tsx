@@ -27,7 +27,8 @@ import {
   Download,
   Trophy,
   Target,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { playNotificationSound } from '../../utils/audio';
@@ -53,6 +54,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showNotifications, setShowNotifications] = useState(false);
   const [popupNotification, setPopupNotification] = useState<any>(null);
   const [globalSocket, setGlobalSocket] = useState<Socket | null>(null);
+  const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
+
+  // Global browser tab close / refresh protection when shift is active
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (clockedIn) {
+        const message = 'Shift is currently active. Are you sure you want to leave? Leaving this page may interrupt activity tracking and shift recording.';
+        e.preventDefault();
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    if (clockedIn) {
+      window.addEventListener('beforeunload', handleBeforeUnload, { capture: true });
+      window.onbeforeunload = handleBeforeUnload;
+    } else {
+      window.removeEventListener('beforeunload', handleBeforeUnload, { capture: true });
+      if (window.onbeforeunload === handleBeforeUnload) {
+        window.onbeforeunload = null;
+      }
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload, { capture: true });
+      if (window.onbeforeunload === handleBeforeUnload) {
+        window.onbeforeunload = null;
+      }
+    };
+  }, [clockedIn]);
 
   // PWA installation states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -280,6 +313,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!hydrated) return null;
 
   const handleLogout = () => {
+    if (clockedIn) {
+      setShowLogoutConfirmModal(true);
+    } else {
+      executeLogout();
+    }
+  };
+
+  const executeLogout = () => {
     removeAuthToken();
     if (typeof window !== 'undefined' && (window as any).AndroidInterface) {
       (window as any).AndroidInterface.clearAuthToken();
@@ -301,6 +342,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Peer Kudos', index: '11', href: '/dashboard/kudos', icon: Trophy, role: 'all' },
     { name: 'OKRs & Performance', index: '12', href: '/dashboard/okrs', icon: Target, role: 'all' },
     { name: 'CONNECT AI Assistant', index: '13', href: '/dashboard/ai', icon: Sparkles, role: 'all' },
+    { name: 'Onboarding & ID Card', index: '14', href: '/dashboard/onboarding', icon: ShieldCheck, role: 'all' },
   ];
 
   // Helper to determine if user can see nav link
@@ -714,6 +756,75 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
             </div>
             <p className="text-[10px] text-slate-300 leading-relaxed line-clamp-2">{popupNotification.message}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Active Shift Navigation / Disconnect Warning Modal */}
+      <AnimatePresence>
+        {showLogoutConfirmModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md font-mono select-none"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-md p-6 rounded-xl border relative shadow-2xl overflow-hidden"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: '#ef4444',
+                boxShadow: '0 0 40px rgba(239, 68, 68, 0.25)'
+              }}
+            >
+              <div className="absolute top-1 left-2 text-[7px] font-mono opacity-30">SYSTEM_ALERT // ACTIVE_SHIFT_PROTECTION</div>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0 animate-pulse">
+                  <Radio className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white tracking-wider uppercase">
+                    ⚠️ Shift is Currently Active
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                    Are you sure you want to leave or disconnect? Leaving this page or logging out may interrupt activity tracking and shift recording.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 p-3 rounded-lg bg-zinc-950/80 border border-rose-500/20 text-[10px] text-slate-400">
+                <span className="text-rose-400 font-bold block mb-0.5">WARNING:</span>
+                Your shift timer is still active. Please clock out from the Dashboard if you want to complete your shift recording safely.
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirmModal(false)}
+                  className="btn btn-secondary flex-1 h-10 text-xs font-bold uppercase cursor-pointer"
+                >
+                  Stay on Shift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutConfirmModal(false);
+                    executeLogout();
+                  }}
+                  className="btn btn-primary flex-1 h-10 text-xs font-bold uppercase cursor-pointer border-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                    boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)'
+                  }}
+                >
+                  Proceed & Disconnect
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

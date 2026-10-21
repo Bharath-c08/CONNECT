@@ -39,6 +39,7 @@ import kudosRoutes from './routes/kudos.js';
 import okrRoutes from './routes/okrs.js';
 import reviewRoutes from './routes/reviews.js';
 import aiRoutes from './routes/ai.js';
+import documentRoutes from './routes/documents.js';
 
 // Initialize Dotenv
 dotenv.config();
@@ -57,7 +58,8 @@ app.set('io', io);
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Bind API Routes
 app.use('/api/auth', authRoutes);
@@ -74,6 +76,7 @@ app.use('/api/kudos', kudosRoutes);
 app.use('/api/okrs', okrRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Serve compiled Android app APK
 app.get('/Dotcore.apk', (req, res) => {

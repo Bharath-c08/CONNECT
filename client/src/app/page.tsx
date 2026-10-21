@@ -473,7 +473,11 @@ export default function LoginPage() {
         </div>
 
         {/* Separate public pages footer links below card */}
-        <div className="mt-8 flex gap-6 text-[9px] font-bold tracking-widest uppercase text-slate-400 select-none">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-[9px] font-bold tracking-widest uppercase text-slate-400 select-none">
+          <Link href="/verify" className="hover:text-cyan-400 text-cyan-400/90 underline underline-offset-4 transition-colors cursor-pointer flex items-center gap-1.5 font-extrabold">
+            <Shield className="w-3.5 h-3.5" />
+            <span>VERIFY DOCUMENT AUTHENTICITY</span>
+          </Link>
           <Link href="/privacy" className="hover:text-slate-900 dark:hover:text-white underline underline-offset-4 transition-colors cursor-pointer">
             PRIVACY POLICY
           </Link>

@@ -61,6 +61,14 @@ const UserSchema = new mongoose.Schema(
       type: [Object],
       default: []
     },
+    profilePhoto: {
+      type: String,
+      default: ''
+    },
+    onboardingCompleted: {
+      type: Boolean,
+      default: false
+    },
   },
   { timestamps: true }
 );

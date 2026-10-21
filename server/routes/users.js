@@ -496,4 +496,36 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   });
 });
 
+// @route   POST /api/users/profile-photo
+// @desc    Upload / update employee passport photo
+// @access  Private
+router.post('/profile-photo', verifyToken, async (req, res) => {
+  try {
+    const { photo, userId } = req.body;
+    if (!photo) {
+      return res.status(400).json({ message: 'Photo data is required' });
+    }
+
+    const targetUserId =
+      (req.user.role === 'admin' || req.user.role === 'superadmin') && userId
+        ? userId
+        : req.user.userId;
+
+    const user = await User.findById(targetUserId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.profilePhoto = photo;
+    await user.save();
+
+    res.json({
+      message: 'Passport photo uploaded and saved successfully.',
+      profilePhoto: user.profilePhoto
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error uploading passport photo', error: error.message });
+  }
+});
+
 export default router;

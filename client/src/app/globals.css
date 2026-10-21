@@ -861,3 +861,77 @@ body.light .events-card-container .relative.overflow-hidden.rounded-lg .text-cya
 body.light .events-card-container .relative.overflow-hidden.rounded-lg .text-pink-400 {
   color: #db2777 !important;
 }
+
+/* =====================================================
+   PRINT ENGINE STYLES (@media print)
+   Standardized layout for ID Cards and Attested Documents
+   ===================================================== */
+@media print {
+  @page {
+    margin: 8mm;
+    size: auto;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide navigation, header, modals backdrop, and utility tools */
+  aside,
+  header,
+  nav,
+  .no-print,
+  button,
+  .btn,
+  .call-overlay,
+  #active-sidebar-indicator {
+    display: none !important;
+  }
+
+  /* Reset main containers for full width */
+  main,
+  div {
+    box-shadow: none !important;
+  }
+
+  /* Printable Document Sheet styling */
+  #printable-document-sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  #printable-document-sheet * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ID Card Wallet Print styling */
+  #printable-id-card-zone {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    gap: 15mm !important;
+    margin: 0 auto !important;
+    padding: 10mm 0 !important;
+    background: transparent !important;
+  }
+
+  .id-card-badge {
+    box-shadow: 0 0 0 1px #94a3b8 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
