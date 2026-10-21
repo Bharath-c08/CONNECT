@@ -25,7 +25,8 @@ import {
   RefreshCw,
   Building,
   UserCheck,
-  Trash2
+  Trash2,
+  Check
 } from 'lucide-react';
 import { apiRequest } from '../../../utils/api';
 import PhotoCropUpload from '../../../components/PhotoCropUpload';
@@ -83,6 +84,7 @@ export default function OnboardingPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [docToDelete, setDocToDelete] = useState<any | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
   // Form states for Create/Edit Document
   const [formData, setFormData] = useState({
@@ -292,6 +294,7 @@ export default function OnboardingPage() {
       targetEmploymentTypes: [],
       changeNotes: ''
     });
+    setUserSearchQuery('');
   };
 
   const openCreateModal = () => {
@@ -302,6 +305,7 @@ export default function OnboardingPage() {
 
   const openEditModal = (doc: any) => {
     setEditingDoc(doc);
+    setUserSearchQuery('');
     setFormData({
       title: doc.title,
       category: doc.category || 'General Agreement',
@@ -1054,32 +1058,211 @@ export default function OnboardingPage() {
                     className="w-full h-10 px-3 rounded-xl bg-zinc-900 border border-white/10 text-white outline-none focus:border-cyan-400 text-xs cursor-pointer"
                   >
                     <option value="all">All Users (Broadcast)</option>
-                    <option value="specific_users">Specific Users (1-to-1)</option>
+                    <option value="specific_users">Specific Users (Multiple Selection)</option>
                     <option value="role">By Role (e.g. Admin / User)</option>
                     <option value="employment_type">By Employment Type</option>
                   </select>
                 </div>
               </div>
 
+              {/* Multiple User Selection Engine */}
               {formData.assignmentType === 'specific_users' && (
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Select Target Employees</label>
-                  <select
-                    multiple
-                    value={formData.targetUsers}
-                    onChange={(e) => {
-                      const selected = Array.from(e.target.selectedOptions, (option) => option.value);
-                      setFormData({ ...formData, targetUsers: selected });
-                    }}
-                    className="w-full h-24 p-2 rounded-xl bg-zinc-900 border border-white/10 text-white outline-none focus:border-cyan-400 text-[10px]"
-                  >
-                    {allUsersList.map((u) => (
-                      <option key={u._id} value={u._id}>
-                        {u.fullName} ({u.employeeId} - {u.role})
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-[8px] text-slate-500 mt-1 block">Hold Ctrl (Cmd) to select multiple employees.</span>
+                <div className="flex flex-col gap-2.5 p-3.5 rounded-xl bg-zinc-950/80 border border-cyan-500/25">
+                  {/* Top Bar: Label, Counter Badge, Bulk Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-cyan-400" />
+                      <label className="text-[10px] uppercase font-black tracking-wider text-white">
+                        Target Employees
+                      </label>
+                      <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                        {formData.targetUsers.length} Selected
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[9px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allIds = allUsersList.map((u) => u._id);
+                          setFormData({ ...formData, targetUsers: allIds });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                      >
+                        Select All ({allUsersList.length})
+                      </button>
+                      {formData.targetUsers.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, targetUsers: [] })}
+                          className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors cursor-pointer"
+                        >
+                          Clear Selection
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Search / Filter Input */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      placeholder="Filter employees by name, ID, role, or title..."
+                      className="w-full h-8 pl-8 pr-8 rounded-lg bg-zinc-900 border border-white/10 text-white placeholder-slate-500 text-[10px] outline-none focus:border-cyan-400"
+                    />
+                    {userSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setUserSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected User Chips (Quick Review & Remove) */}
+                  {formData.targetUsers.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto py-1">
+                      {formData.targetUsers.map((userId) => {
+                        const userObj = allUsersList.find((u) => u._id === userId);
+                        if (!userObj) return null;
+                        return (
+                          <span
+                            key={userId}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-[9px] font-bold"
+                          >
+                            <span>{userObj.fullName}</span>
+                            <span className="text-[8px] text-cyan-500/80 font-mono">({userObj.employeeId})</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData({
+                                  ...formData,
+                                  targetUsers: formData.targetUsers.filter((id) => id !== userId)
+                                });
+                              }}
+                              className="hover:text-rose-400 cursor-pointer ml-0.5"
+                              title="Remove employee"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Scrollable Checkbox Employee List */}
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-zinc-900/60 divide-y divide-white/5">
+                    {allUsersList
+                      .filter((u) => {
+                        if (!userSearchQuery) return true;
+                        const q = userSearchQuery.toLowerCase();
+                        return (
+                          (u.fullName || '').toLowerCase().includes(q) ||
+                          (u.employeeId || '').toLowerCase().includes(q) ||
+                          (u.role || '').toLowerCase().includes(q) ||
+                          (u.jobTitle || '').toLowerCase().includes(q)
+                        );
+                      })
+                      .map((u) => {
+                        const isSelected = formData.targetUsers.includes(u._id);
+                        return (
+                          <div
+                            key={u._id}
+                            onClick={() => {
+                              const next = isSelected
+                                ? formData.targetUsers.filter((id) => id !== u._id)
+                                : [...formData.targetUsers, u._id];
+                              setFormData({ ...formData, targetUsers: next });
+                            }}
+                            className={`p-2 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-cyan-500/15 border-l-2 border-cyan-400 text-white'
+                                : 'hover:bg-white/[0.03] text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {/* Custom Styled Checkbox */}
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected
+                                    ? 'bg-cyan-500 border-cyan-400 text-zinc-950'
+                                    : 'border-white/20 bg-zinc-950'
+                                }`}
+                              >
+                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+
+                              {/* Initials Avatar */}
+                              <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[9px] font-extrabold text-cyan-400 shrink-0">
+                                {(u.fullName || 'U')
+                                  .split(' ')
+                                  .map((n: string) => n[0])
+                                  .slice(0, 2)
+                                  .join('')
+                                  .toUpperCase()}
+                              </div>
+
+                              {/* Employee Identity */}
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold truncate flex items-center gap-1.5">
+                                  <span>{u.fullName}</span>
+                                  {u._id === currentUser?._id && (
+                                    <span className="text-[7.5px] px-1 rounded bg-slate-800 text-slate-400 uppercase font-mono">
+                                      YOU
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[9px] text-slate-500 font-mono flex items-center gap-2 mt-0.5">
+                                  <span className="text-cyan-400/90 font-bold">EMP ID: {u.employeeId}</span>
+                                  {u.jobTitle && <span className="text-slate-400">&bull; {u.jobTitle}</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Role / Permission Pill */}
+                            <div className="shrink-0 text-right">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase border ${
+                                  u.role === 'superadmin' || u.role === 'admin'
+                                    ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                                    : 'bg-zinc-800 text-slate-400 border-white/10'
+                                }`}
+                              >
+                                {u.role}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    {allUsersList.length > 0 &&
+                      allUsersList.filter((u) => {
+                        if (!userSearchQuery) return true;
+                        const q = userSearchQuery.toLowerCase();
+                        return (
+                          (u.fullName || '').toLowerCase().includes(q) ||
+                          (u.employeeId || '').toLowerCase().includes(q) ||
+                          (u.role || '').toLowerCase().includes(q) ||
+                          (u.jobTitle || '').toLowerCase().includes(q)
+                        );
+                      }).length === 0 && (
+                        <div className="p-4 text-center text-xs text-slate-500">
+                          No employees match "{userSearchQuery}"
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Helper footer */}
+                  <div className="text-[8px] text-slate-500 flex items-center justify-between px-1">
+                    <span>Click any employee row to toggle selection</span>
+                    <span>{formData.targetUsers.length} employee(s) assigned</span>
+                  </div>
                 </div>
               )}
 
