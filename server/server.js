@@ -40,6 +40,7 @@ import okrRoutes from './routes/okrs.js';
 import reviewRoutes from './routes/reviews.js';
 import aiRoutes from './routes/ai.js';
 import documentRoutes from './routes/documents.js';
+import monitorRoutes from './routes/monitor.js';
 
 // Initialize Dotenv
 dotenv.config();
@@ -53,8 +54,12 @@ const io = new Server(server, {
   },
 });
 
-// Bind io to app for use in routes
+// Track online users mapping: userId -> Set of socket.ids
+const onlineUsers = new Map();
+
+// Bind io and onlineUsers to app for use in routes
 app.set('io', io);
+app.set('onlineUsers', onlineUsers);
 
 // Middlewares
 app.use(cors());
@@ -77,6 +82,7 @@ app.use('/api/okrs', okrRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/monitor', monitorRoutes);
 
 // Serve compiled Android app APK
 app.get('/Dotcore.apk', (req, res) => {
@@ -311,10 +317,7 @@ async function seedDefaultLeaveCategories() {
   }
 }
 
-// Track online users mapping: userId -> Set of socket.ids
-const onlineUsers = new Map();
-
-// Socket.io WebSocket Connections for Chat
+// Socket.io WebSocket Connections for Chat & Monitoring
 io.on('connection', (socket) => {
   console.log('WebSocket client connected:', socket.id);
 
@@ -483,6 +486,85 @@ io.on('connection', (socket) => {
   socket.on('leave-meeting', ({ meetingId, userId, socketId }) => {
     socket.leave(meetingId);
     socket.to(meetingId).emit('peer-left', { userId, socketId });
+  });
+
+  // ── SUPER ADMIN REAL-TIME CAMERA SURVEILLANCE & PERFORMANCE MONITORING ──
+  socket.on('monitor-request-camera', ({ targetUserId, adminId, adminName }) => {
+    console.log(`[MONITOR] Superadmin ${adminName || adminId} requesting camera of user ${targetUserId}`);
+    io.to(targetUserId).emit('monitor-camera-requested', {
+      adminId: adminId || socket.userId,
+      adminSocketId: socket.id,
+      adminName: adminName || 'Super Administrator'
+    });
+  });
+
+  socket.on('monitor-camera-accepted', ({ adminSocketId, adminId, userId, userName }) => {
+    console.log(`[MONITOR] User ${userId} accepted camera request from admin ${adminId || adminSocketId}`);
+    if (adminSocketId) {
+      io.to(adminSocketId).emit('monitor-camera-ready', { userId, userName, userSocketId: socket.id });
+    } else if (adminId) {
+      io.to(adminId).emit('monitor-camera-ready', { userId, userName, userSocketId: socket.id });
+    }
+  });
+
+  socket.on('monitor-camera-frame', ({ targetAdminId, adminSocketId, userId, frameData, timestamp, stats }) => {
+    // Relay live snapshot frame to superadmin
+    if (adminSocketId) {
+      io.to(adminSocketId).emit('monitor-camera-frame', { userId, frameData, timestamp, stats });
+    } else if (targetAdminId) {
+      io.to(targetAdminId).emit('monitor-camera-frame', { userId, frameData, timestamp, stats });
+    }
+  });
+
+  socket.on('monitor-stop-camera', ({ targetUserId }) => {
+    console.log(`[MONITOR] Superadmin stopping camera of user ${targetUserId}`);
+    io.to(targetUserId).emit('monitor-camera-stopped', { stoppedBy: socket.userId });
+  });
+
+  socket.on('monitor-webrtc-offer', ({ targetUserId, signal, fromAdminId }) => {
+    io.to(targetUserId).emit('monitor-webrtc-offer', {
+      signal,
+      fromAdminId,
+      adminSocketId: socket.id
+    });
+  });
+
+  socket.on('monitor-webrtc-answer', ({ targetAdminSocketId, targetAdminId, signal, userId }) => {
+    if (targetAdminSocketId) {
+      io.to(targetAdminSocketId).emit('monitor-webrtc-answer', { signal, userId });
+    } else if (targetAdminId) {
+      io.to(targetAdminId).emit('monitor-webrtc-answer', { signal, userId });
+    }
+  });
+
+  socket.on('monitor-ice-candidate', ({ targetSocketId, targetUserId, candidate }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('monitor-ice-candidate', { candidate, fromSocketId: socket.id });
+    } else if (targetUserId) {
+      io.to(targetUserId).emit('monitor-ice-candidate', { candidate, fromSocketId: socket.id });
+    }
+  });
+
+  socket.on('monitor-send-nudge', async ({ targetUserId, message, type, title }) => {
+    try {
+      const notif = new Notification({
+        recipientId: targetUserId,
+        type: 'system',
+        title: title || 'Supervisor Performance Alert',
+        message: message,
+        link: '/dashboard'
+      });
+      await notif.save();
+      io.to(targetUserId).emit('new-notification', notif);
+      io.to(targetUserId).emit('monitor-nudge-received', {
+        title: title || 'Supervisor Performance Alert',
+        message,
+        type: type || 'warning',
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Error sending monitor nudge:', err);
+    }
   });
 
   socket.on('disconnect', () => {
