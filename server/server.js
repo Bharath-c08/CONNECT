@@ -323,21 +323,26 @@ io.on('connection', (socket) => {
 
   // Register user and track active session
   socket.on('register-user', (userId) => {
-    if (!onlineUsers.has(userId)) {
-      onlineUsers.set(userId, new Set());
+    if (!userId) return;
+    const uid = userId.toString();
+    if (!onlineUsers.has(uid)) {
+      onlineUsers.set(uid, new Set());
     }
-    onlineUsers.get(userId).add(socket.id);
-    socket.userId = userId;
+    onlineUsers.get(uid).add(socket.id);
+    socket.userId = uid;
+    socket.join(uid);
     
     // Broadcast active users list to all clients
     io.emit('active-users-list', Array.from(onlineUsers.keys()));
-    console.log(`User registered: ${userId}. Active users count: ${onlineUsers.size}`);
+    console.log(`User registered: ${uid}. Active users count: ${onlineUsers.size}`);
   });
 
   // Join a room (can be teamId or composite personal room)
   socket.on('join-room', (roomId) => {
-    socket.join(roomId);
-    console.log(`Socket ${socket.id} joined room ${roomId}`);
+    if (!roomId) return;
+    const rid = roomId.toString();
+    socket.join(rid);
+    console.log(`Socket ${socket.id} joined room ${rid}`);
   });
 
   // Handle message sending
@@ -491,11 +496,35 @@ io.on('connection', (socket) => {
   // ── SUPER ADMIN REAL-TIME CAMERA SURVEILLANCE & PERFORMANCE MONITORING ──
   socket.on('monitor-request-camera', ({ targetUserId, adminId, adminName }) => {
     console.log(`[MONITOR] Superadmin ${adminName || adminId} requesting camera of user ${targetUserId}`);
-    io.to(targetUserId).emit('monitor-camera-requested', {
+    if (!targetUserId) return;
+    const targetIdStr = targetUserId.toString();
+
+    const sockets = onlineUsers.get(targetIdStr);
+    const hasSockets = sockets && sockets.size > 0;
+
+    // Emit to user's room
+    io.to(targetIdStr).emit('monitor-camera-requested', {
       adminId: adminId || socket.userId,
       adminSocketId: socket.id,
       adminName: adminName || 'Super Administrator'
     });
+
+    // Also emit to all direct socket IDs registered to this user
+    if (hasSockets) {
+      sockets.forEach((sockId) => {
+        io.to(sockId).emit('monitor-camera-requested', {
+          adminId: adminId || socket.userId,
+          adminSocketId: socket.id,
+          adminName: adminName || 'Super Administrator'
+        });
+      });
+    } else {
+      console.log(`[MONITOR] Target user ${targetIdStr} is currently offline`);
+      socket.emit('monitor-camera-error', {
+        userId: targetIdStr,
+        error: 'Operator is offline. They must be logged in on their workstation with the dashboard open.'
+      });
+    }
   });
 
   socket.on('monitor-camera-accepted', ({ adminSocketId, adminId, userId, userName }) => {
@@ -503,7 +532,7 @@ io.on('connection', (socket) => {
     if (adminSocketId) {
       io.to(adminSocketId).emit('monitor-camera-ready', { userId, userName, userSocketId: socket.id });
     } else if (adminId) {
-      io.to(adminId).emit('monitor-camera-ready', { userId, userName, userSocketId: socket.id });
+      io.to(adminId.toString()).emit('monitor-camera-ready', { userId, userName, userSocketId: socket.id });
     }
   });
 
@@ -512,7 +541,16 @@ io.on('connection', (socket) => {
     if (adminSocketId) {
       io.to(adminSocketId).emit('monitor-camera-frame', { userId, frameData, timestamp, stats });
     } else if (targetAdminId) {
-      io.to(targetAdminId).emit('monitor-camera-frame', { userId, frameData, timestamp, stats });
+      io.to(targetAdminId.toString()).emit('monitor-camera-frame', { userId, frameData, timestamp, stats });
+    }
+  });
+
+  socket.on('monitor-camera-error', ({ targetAdminId, adminSocketId, userId, error }) => {
+    console.log(`[MONITOR] Camera error for user ${userId}:`, error);
+    if (adminSocketId) {
+      io.to(adminSocketId).emit('monitor-camera-error', { userId, error });
+    } else if (targetAdminId) {
+      io.to(targetAdminId.toString()).emit('monitor-camera-error', { userId, error });
     }
   });
 

@@ -117,6 +117,8 @@ export default function SuperAdminMonitorPage() {
       lastFrame?: string;
       lastTimestamp?: number;
       fps?: number;
+      errorMsg?: string;
+      isLocalTest?: boolean;
     };
   }>({});
 
@@ -132,6 +134,8 @@ export default function SuperAdminMonitorPage() {
 
   // WebRTC PeerConnections map for live stream tracks: userId -> RTCPeerConnection
   const peerConnectionsRef = useRef<{ [userId: string]: RTCPeerConnection }>({});
+  // Local webcam test streams for admin self-demonstration
+  const localTestStreamsRef = useRef<{ [userId: string]: { stream: MediaStream; interval: NodeJS.Timeout } }>({});
 
   // 1. Initial Auth Check & Socket Setup
   useEffect(() => {
@@ -171,6 +175,17 @@ export default function SuperAdminMonitorPage() {
         [data.userId]: {
           ...(prev[data.userId] || {}),
           status: 'live'
+        }
+      }));
+    });
+
+    // Socket: Camera Error or Offline notice
+    s.on('monitor-camera-error', (data: { userId: string; error: string }) => {
+      setCameraFeeds((prev) => ({
+        ...prev,
+        [data.userId]: {
+          status: 'error',
+          errorMsg: data.error
         }
       }));
     });
@@ -238,6 +253,24 @@ export default function SuperAdminMonitorPage() {
       adminName: currentUser?.fullName || 'Super Administrator'
     });
 
+    // Auto-timeout after 7s if operator workstation does not uplink
+    setTimeout(() => {
+      setCameraFeeds((prev) => {
+        if (prev[operator._id]?.status === 'requesting') {
+          return {
+            ...prev,
+            [operator._id]: {
+              status: 'error',
+              errorMsg: operator.isOnline
+                ? `Workstation of "${operator.fullName}" did not stream webcam feed. Verify browser permissions on their device.`
+                : `Operator "${operator.fullName}" is currently offline. They must be logged in on their device with the dashboard open.`
+            }
+          };
+        }
+        return prev;
+      });
+    }, 7000);
+
     // Log audit event
     apiRequest('/monitor/audit', {
       method: 'POST',
@@ -250,9 +283,68 @@ export default function SuperAdminMonitorPage() {
     }).catch(() => {});
   };
 
+  // Local/Self Camera Test for Super Admin
+  const handleTestLocalCamera = async (operator: Operator) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
+        audio: false
+      });
+
+      const testVideo = document.createElement('video');
+      testVideo.autoplay = true;
+      testVideo.playsInline = true;
+      testVideo.muted = true;
+      testVideo.srcObject = stream;
+      await testVideo.play().catch(() => {});
+
+      const testCanvas = document.createElement('canvas');
+      testCanvas.width = 480;
+      testCanvas.height = 360;
+      const ctx = testCanvas.getContext('2d');
+
+      const interval = setInterval(() => {
+        if (!ctx || testVideo.videoWidth === 0) return;
+        ctx.drawImage(testVideo, 0, 0, testCanvas.width, testCanvas.height);
+        const frameData = testCanvas.toDataURL('image/jpeg', 0.65);
+
+        setCameraFeeds((prev) => ({
+          ...prev,
+          [operator._id]: {
+            status: 'live',
+            lastFrame: frameData,
+            lastTimestamp: Date.now(),
+            fps: 15,
+            isLocalTest: true
+          }
+        }));
+      }, 500);
+
+      localTestStreamsRef.current[operator._id] = { stream, interval };
+
+      setCameraFeeds((prev) => ({
+        ...prev,
+        [operator._id]: {
+          status: 'live',
+          lastTimestamp: Date.now(),
+          fps: 15,
+          isLocalTest: true
+        }
+      }));
+    } catch (err: any) {
+      alert(`Local webcam test error: ${err.message || 'Please check webcam permissions in your browser.'}`);
+    }
+  };
+
   // Camera Control: Stop Camera for User
   const handleStopCamera = (operatorId: string) => {
     if (!socket) return;
+
+    if (localTestStreamsRef.current[operatorId]) {
+      clearInterval(localTestStreamsRef.current[operatorId].interval);
+      localTestStreamsRef.current[operatorId].stream.getTracks().forEach((t) => t.stop());
+      delete localTestStreamsRef.current[operatorId];
+    }
 
     setCameraFeeds((prev) => {
       const updated = { ...prev };
@@ -868,6 +960,30 @@ export default function SuperAdminMonitorPage() {
                           <span className="text-cyan-400 font-bold">{operator.eventsPerMinute} evt/min</span>
                         </div>
                       </div>
+                    ) : feed?.status === 'error' ? (
+                      <div className="flex flex-col items-center justify-center p-3 text-center">
+                        <AlertTriangle className="w-7 h-7 text-amber-400 mb-1.5 animate-pulse" />
+                        <span className="text-[10px] text-amber-300 font-bold tracking-wider uppercase">
+                          CAMERA NOT CONNECTED
+                        </span>
+                        <p className="text-[8.5px] text-slate-400 mt-1 max-w-[210px] leading-tight">
+                          {feed.errorMsg || 'Operator is offline or workstation did not uplink.'}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-2.5">
+                          <button
+                            onClick={() => handleTurnOnCamera(operator)}
+                            className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-[9px] uppercase cursor-pointer"
+                          >
+                            Retry
+                          </button>
+                          <button
+                            onClick={() => handleTestLocalCamera(operator)}
+                            className="px-2.5 py-1 rounded bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-[9px] uppercase cursor-pointer"
+                          >
+                            Test My Webcam
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center p-4 text-center">
                         <div className="w-8 h-8 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin mb-2" />
@@ -875,6 +991,12 @@ export default function SuperAdminMonitorPage() {
                           CONNECTING CAMERA FEED...
                         </span>
                         <span className="text-[8px] text-slate-500 mt-0.5">Awaiting operator webcam stream uplink</span>
+                        <button
+                          onClick={() => handleTestLocalCamera(operator)}
+                          className="mt-3 text-[9px] text-cyan-400 underline hover:text-cyan-300 cursor-pointer"
+                        >
+                          Or test with my local webcam
+                        </button>
                       </div>
                     )
                   ) : (
@@ -885,18 +1007,22 @@ export default function SuperAdminMonitorPage() {
                       <span className="text-[10px] text-slate-500 tracking-wider uppercase font-bold">
                         CAMERA FEED STANDBY
                       </span>
-                      <button
-                        onClick={() => handleTurnOnCamera(operator)}
-                        disabled={!operator.isOnline}
-                        className={`mt-2.5 px-3 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
-                          operator.isOnline
-                            ? 'bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-zinc-950 border border-cyan-500/40 shadow-sm'
-                            : 'bg-zinc-800 text-slate-600 border border-white/5 cursor-not-allowed'
-                        }`}
-                      >
-                        <Video className="w-3 h-3" />
-                        <span>Turn On Camera</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 mt-2.5">
+                        <button
+                          onClick={() => handleTurnOnCamera(operator)}
+                          className="px-3 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-zinc-950 border border-cyan-500/40 shadow-sm"
+                        >
+                          <Video className="w-3 h-3" />
+                          <span>Turn On Camera</span>
+                        </button>
+                        <button
+                          onClick={() => handleTestLocalCamera(operator)}
+                          className="px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-slate-300 hover:text-white border border-white/10"
+                          title="Preview with your local webcam"
+                        >
+                          <span>Test Local</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

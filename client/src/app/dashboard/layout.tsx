@@ -221,14 +221,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!user) return;
     
-    // Setup Global Socket for incoming calls & live notifications
     const socket = io(getSocketUrl());
     setGlobalSocket(socket);
 
-    socket.on('connect', () => {
-      socket.emit('join-room', user._id || user.id);
-      socket.emit('register-user', user._id || user.id);
-    });
+    const emitRegistration = () => {
+      const uid = (user._id || user.id)?.toString();
+      if (uid) {
+        socket.emit('join-room', uid);
+        socket.emit('register-user', uid);
+      }
+    };
+
+    if (socket.connected) {
+      emitRegistration();
+    }
+    socket.on('connect', emitRegistration);
 
     socket.on('new-notification', (notif) => {
       setNotifications(prev => {

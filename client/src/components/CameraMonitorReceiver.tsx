@@ -37,6 +37,7 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
   } | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
+  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,6 +60,10 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
       peerConnectionRef.current = null;
     }
 
+    if (hiddenVideoRef.current) {
+      hiddenVideoRef.current.srcObject = null;
+    }
+
     if (videoPreviewRef.current) {
       videoPreviewRef.current.srcObject = null;
     }
@@ -67,15 +72,22 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
     setAdminInfo(null);
   };
 
-  // Start frame broadcasting loop
+  // Sync stream to preview video whenever camera active or preview mounted
+  useEffect(() => {
+    if (isCameraActive && videoPreviewRef.current && localStreamRef.current) {
+      videoPreviewRef.current.srcObject = localStreamRef.current;
+      videoPreviewRef.current.play().catch(() => {});
+    }
+  }, [isCameraActive, isMinimized]);
+
+  // Start frame broadcasting loop using hidden offscreen video
   const startFrameBroadcasting = (adminSocketId?: string, adminId?: string) => {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
 
     frameIntervalRef.current = setInterval(() => {
-      if (!videoPreviewRef.current || !canvasRef.current || !localStreamRef.current) return;
-
-      const video = videoPreviewRef.current;
+      const video = hiddenVideoRef.current || videoPreviewRef.current;
       const canvas = canvasRef.current;
+      if (!video || !canvas || !localStreamRef.current) return;
 
       if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
@@ -99,7 +111,7 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
           timestamp: Date.now()
         });
       }
-    }, 700); // 700ms interval = ~1.4 fps crisp snapshot telemetry
+    }, 600); // 600ms interval = ~1.7 fps responsive stream
   };
 
   useEffect(() => {
@@ -122,12 +134,18 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
         });
 
         localStreamRef.current = stream;
-        setIsCameraActive(true);
 
-        if (videoPreviewRef.current) {
-          videoPreviewRef.current.srcObject = stream;
-          videoPreviewRef.current.play().catch(() => {});
+        // Attach to hidden video immediately for capture
+        if (hiddenVideoRef.current) {
+          hiddenVideoRef.current.srcObject = stream;
+          try {
+            await hiddenVideoRef.current.play();
+          } catch (e) {
+            console.warn('Hidden video play catch:', e);
+          }
         }
+
+        setIsCameraActive(true);
 
         // Notify super admin that camera is ready
         socket.emit('monitor-camera-accepted', {
@@ -141,8 +159,23 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
         startFrameBroadcasting(data.adminSocketId, data.adminId);
       } catch (err: any) {
         console.error('[MONITOR CLIENT] Error accessing camera device:', err);
-        setPermissionError(err.message || 'Camera permission denied or camera device unavailable');
+        const errMsg =
+          err.name === 'NotAllowedError'
+            ? 'Webcam permission was denied by operator on their browser.'
+            : err.name === 'NotFoundError'
+            ? 'No webcam device found on operator workstation.'
+            : err.message || 'Camera access failed.';
+
+        setPermissionError(errMsg);
         stopCameraStream();
+
+        // Notify admin of error
+        socket.emit('monitor-camera-error', {
+          adminSocketId: data.adminSocketId,
+          targetAdminId: data.adminId,
+          userId: currentUser._id || currentUser.id,
+          error: errMsg
+        });
       }
     };
 
@@ -230,7 +263,14 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
 
   return (
     <>
-      {/* Hidden processing canvas */}
+      {/* Offscreen video and canvas for continuous reliable frame extraction */}
+      <video
+        ref={hiddenVideoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ position: 'fixed', width: '1px', height: '1px', opacity: 0.01, pointerEvents: 'none' }}
+      />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {/* ── Active Camera Surveillance Floating Indicator ── */}
@@ -274,7 +314,7 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
                 </div>
                 <button
                   onClick={() => setIsMinimized(true)}
-                  className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                  className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
                   title="Minimize indicator"
                 >
                   <Minimize2 className="w-3.5 h-3.5" />
@@ -304,7 +344,7 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
               <div className="text-[9px] text-slate-400 leading-tight flex items-start gap-1.5">
                 <Activity className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
                 <span>
-                  Performance & working environment video is actively transmitting to Super Admin.
+                  Performance &amp; working environment video is actively transmitting to Super Admin.
                 </span>
               </div>
             </>
@@ -317,10 +357,10 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
         <div className="fixed bottom-4 right-4 z-50 bg-rose-950/95 border border-rose-500/50 rounded-xl p-3 max-w-sm text-xs font-mono shadow-2xl flex items-start gap-2.5 backdrop-blur-md">
           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h4 className="font-bold text-rose-300 text-[11px] uppercase">Camera Access Failed</h4>
+            <h4 className="font-bold text-rose-300 text-[11px] uppercase">Camera Access Notice</h4>
             <p className="text-[10px] text-rose-200/80 mt-0.5">{permissionError}</p>
           </div>
-          <button onClick={() => setPermissionError(null)} className="text-slate-400 hover:text-white">
+          <button onClick={() => setPermissionError(null)} className="text-slate-400 hover:text-white cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -352,7 +392,7 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
               </div>
               <button
                 onClick={() => setNudgeAlert(null)}
-                className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+                className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -366,10 +406,10 @@ export default function CameraMonitorReceiver({ socket, currentUser }: CameraMon
               <span>Telemetry Timestamp: {new Date(nudgeAlert.timestamp).toLocaleTimeString()}</span>
               <button
                 onClick={() => setNudgeAlert(null)}
-                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20 cursor-pointer"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
-                Acknowledge & Dismiss
+                Acknowledge &amp; Dismiss
               </button>
             </div>
           </div>
