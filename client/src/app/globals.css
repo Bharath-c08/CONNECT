@@ -1039,4 +1039,50 @@ body.light .events-card-container .relative.overflow-hidden.rounded-lg .text-pin
   }
 }
 
+/* Continuous Telemetry Ticker Marquee & Moving Scanline Animations */
+@keyframes continuous-ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes continuous-ticker-reverse {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes radar-scanline {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 0.6; }
+  100% { transform: translateX(200%); opacity: 0; }
+}
+
+@keyframes beam-glow {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.95); }
+  50% { opacity: 0.9; transform: scaleX(1.05); }
+}
+
+.animate-continuous-ticker {
+  display: flex;
+  width: max-content;
+  animation: continuous-ticker 32s linear infinite;
+  will-change: transform;
+}
+
+.animate-continuous-ticker-fast {
+  display: flex;
+  width: max-content;
+  animation: continuous-ticker 20s linear infinite;
+  will-change: transform;
+}
+
+.animate-radar-scanline {
+  animation: radar-scanline 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.animate-beam-glow {
+  animation: beam-glow 3s ease-in-out infinite;
+}
+
+
 

@@ -257,19 +257,19 @@ export default function DashboardPage() {
       }
 
       if (taskDataRes.status === 'fulfilled') {
-        setTasks(taskDataRes.value.slice(0, 4));
+        setTasks(taskDataRes.value || []);
       } else {
         console.error('Error fetching tasks:', taskDataRes.reason);
       }
 
       if (historyDataRes.status === 'fulfilled') {
-        setHistory(historyDataRes.value.slice(0, 10));
+        setHistory(historyDataRes.value || []);
       } else {
         console.error('Error fetching history:', historyDataRes.reason);
       }
 
       if (leaveDataRes.status === 'fulfilled') {
-        setLeaves(leaveDataRes.value.slice(0, 3));
+        setLeaves(leaveDataRes.value || []);
       } else {
         console.error('Error fetching leaves:', leaveDataRes.reason);
       }
@@ -461,6 +461,29 @@ export default function DashboardPage() {
     return Math.round(earned * 100) / 100;
   };
 
+  // Computed Live Operational Metrics for Live Stream Ribbon
+  const pendingLeaves = leaves.filter((l: any) => l.status === 'pending');
+  const pendingLeavesCount = pendingLeaves.length;
+  const nextPendingLeave = pendingLeaves[0];
+
+  const currentSessionMinutes = clockedIn ? Math.floor(elapsedSeconds / 60) : 0;
+  const regularMinutesToday = clockStatus.regularMinutesToday || 0;
+  const otMinutesToday = clockStatus.otMinutesToday || 0;
+  const totalWorkedMinutesToday = regularMinutesToday + otMinutesToday + currentSessionMinutes;
+  const totalWorkedHoursToday = (totalWorkedMinutesToday / 60).toFixed(1);
+
+  // Total hours from recent sessions + current session
+  const recentHistoryMinutes = history.reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
+  const totalHoursLoggedAll = ((recentHistoryMinutes + currentSessionMinutes) / 60).toFixed(1);
+
+  // Active missions count
+  const pendingTasks = tasks.filter((t: any) => t.status !== 'completed');
+  const pendingTasksCount = pendingTasks.length;
+
+  // Celebrations & events
+  const todayCelebration = celebrations.find((c: any) => c.isToday);
+  const todayEvent = events.find((e: any) => new Date(e.date).toDateString() === new Date().toDateString());
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 font-mono text-[11px] tracking-wider select-none text-slate-500">
@@ -513,6 +536,297 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       )}
+
+      {/* ── Continuous Live Telemetry Ribbon / Scrolling Marquee ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl border border-red-500/30 bg-zinc-950/80 backdrop-blur-xl relative overflow-hidden shadow-2xl p-3 flex items-center select-none"
+        style={{
+          boxShadow: '0 0 25px rgba(239, 68, 68, 0.12), inset 0 0 15px rgba(239, 68, 68, 0.05)'
+        }}
+      >
+        {/* Moving scanline across the top border */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none">
+          <div className="w-1/3 h-full bg-gradient-to-r from-transparent via-red-500 to-transparent animate-radar-scanline" />
+        </div>
+
+        {/* The Infinite Scrolling Ticker (Moving continuously in & out - 100% full width) */}
+        <div className="w-full overflow-hidden relative">
+          <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-zinc-950 to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-zinc-950 to-transparent z-10 pointer-events-none" />
+          
+          <div className="animate-continuous-ticker text-xs font-mono font-bold tracking-wide gap-8 items-center py-0.5">
+            {/* 0. Live Stream Indicator (Moving & scrolling seamlessly with telemetry) */}
+            <div className="flex items-center gap-2.5 px-3 py-1 rounded-xl bg-red-500/15 border border-red-500/40 text-red-400 font-mono text-xs font-black uppercase tracking-wider shrink-0 shadow-sm">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+              </span>
+              <span>LIVE STREAM</span>
+              <span className="opacity-70 text-[10px]">// TELEMETRY</span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 1. Pending Leaves */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/35">
+                PENDING LEAVE
+              </span>
+              <span className="font-extrabold text-white">
+                {pendingLeavesCount > 0 ? (
+                  <span className="text-amber-300 font-bold">
+                    {pendingLeavesCount} Request{pendingLeavesCount > 1 ? 's' : ''} Awaiting Review{nextPendingLeave ? ` (${nextPendingLeave.leaveType?.toUpperCase()} LEAVE)` : ''}
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 font-bold">0 Pending (All Leaves Cleared)</span>
+                )}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 2. Total Working Hours */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/35">
+                TOTAL WORKING HOURS
+              </span>
+              <span className="text-white font-extrabold">
+                Today: <span className="text-emerald-300 font-mono font-bold">{totalWorkedHoursToday} hrs</span> logged / {clockStatus.regularShiftLimit} hrs Regular Cap{clockStatus.overtimeEligible ? ` (+${clockStatus.otShiftLimit}h OT Cap)` : ''}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 3. Duty Status */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/35">
+                DUTY STATUS
+              </span>
+              <span className="text-white font-extrabold">
+                {clockedIn ? (
+                  <span className="text-cyan-300 font-bold">ON DUTY &bull; Elapsed: {elapsedTime} ({activeSession?.shiftType === 'overtime' ? 'OVERTIME OT' : 'REGULAR'})</span>
+                ) : (
+                  <span className="text-slate-400 font-bold">STANDBY (Ready to Initiate Shift)</span>
+                )}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 4. Active Missions */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/35">
+                ACTIVE MISSIONS
+              </span>
+              <span className="text-white font-extrabold">
+                {pendingTasksCount > 0 ? (
+                  <span className="text-amber-300 font-bold">
+                    {pendingTasksCount} Active Task{pendingTasksCount > 1 ? 's' : ''} in Pipeline{pendingTasks[0] ? ` &bull; Next: "${pendingTasks[0].title}"` : ''}
+                  </span>
+                ) : (
+                  <span className="text-slate-400 font-bold">No Active Tasks (All Cleared)</span>
+                )}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 5. Cumulative Logged */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/35">
+                CUMULATIVE LOGGED
+              </span>
+              <span className="text-white font-extrabold">
+                <span className="text-blue-300 font-mono font-bold">{totalHoursLoggedAll} hrs</span> Total Recorded
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 6. Shift Schedule */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/35">
+                SHIFT SCHEDULE
+              </span>
+              <span className="text-white font-extrabold">
+                {user?.shiftStartTime || '09:00'} &ndash; {user?.shiftEndTime || '18:00'} ({user?.fullName || 'Operator'})
+              </span>
+            </div>
+
+            {todayCelebration && (
+              <>
+                <span className="text-slate-600 font-black">◆</span>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-pink-500/20 text-pink-300 border border-pink-500/35">
+                    CELEBRATION 🎉
+                  </span>
+                  <span className="text-pink-300 font-extrabold">
+                    {todayCelebration.fullName} ({todayCelebration.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${todayCelebration.years} Years) 🎖️`})
+                  </span>
+                </div>
+              </>
+            )}
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 7. OKR Progress */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/35">
+                OKR PROGRESS
+              </span>
+              <span className="text-white font-extrabold">
+                <span className="text-indigo-300 font-mono font-bold">{okrsSummary.progress || 0}%</span> Completed &bull; {okrsSummary.count || 0} Targets Active
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* 8. Peer Kudos */}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-yellow-500/20 text-yellow-300 border border-yellow-500/35">
+                PEER KUDOS
+              </span>
+              <span className="text-white font-extrabold">
+                <span className="text-yellow-300 font-mono font-bold">{kudosStats.totalPoints || 0} Points</span> &bull; {kudosStats.receivedCount || 0} Badges
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            {/* DUPLICATE SET FOR SEAMLESS 100% INFINITE LOOP */}
+            <div className="flex items-center gap-2.5 px-3 py-1 rounded-xl bg-red-500/15 border border-red-500/40 text-red-400 font-mono text-xs font-black uppercase tracking-wider shrink-0 shadow-sm">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+              </span>
+              <span>LIVE STREAM</span>
+              <span className="opacity-70 text-[10px]">// TELEMETRY</span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/35">
+                PENDING LEAVE
+              </span>
+              <span className="font-extrabold text-white">
+                {pendingLeavesCount > 0 ? (
+                  <span className="text-amber-300 font-bold">
+                    {pendingLeavesCount} Request{pendingLeavesCount > 1 ? 's' : ''} Awaiting Review{nextPendingLeave ? ` (${nextPendingLeave.leaveType?.toUpperCase()} LEAVE)` : ''}
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 font-bold">0 Pending (All Leaves Cleared)</span>
+                )}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/35">
+                TOTAL WORKING HOURS
+              </span>
+              <span className="text-white font-extrabold">
+                Today: <span className="text-emerald-300 font-mono font-bold">{totalWorkedHoursToday} hrs</span> logged / {clockStatus.regularShiftLimit} hrs Regular Cap{clockStatus.overtimeEligible ? ` (+${clockStatus.otShiftLimit}h OT Cap)` : ''}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/35">
+                DUTY STATUS
+              </span>
+              <span className="text-white font-extrabold">
+                {clockedIn ? (
+                  <span className="text-cyan-300 font-bold">ON DUTY &bull; Elapsed: {elapsedTime} ({activeSession?.shiftType === 'overtime' ? 'OVERTIME OT' : 'REGULAR'})</span>
+                ) : (
+                  <span className="text-slate-400 font-bold">STANDBY (Ready to Initiate Shift)</span>
+                )}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/35">
+                ACTIVE MISSIONS
+              </span>
+              <span className="text-white font-extrabold">
+                {pendingTasksCount > 0 ? (
+                  <span className="text-amber-300 font-bold">
+                    {pendingTasksCount} Active Task{pendingTasksCount > 1 ? 's' : ''} in Pipeline{pendingTasks[0] ? ` &bull; Next: "${pendingTasks[0].title}"` : ''}
+                  </span>
+                ) : (
+                  <span className="text-slate-400 font-bold">No Active Tasks (All Cleared)</span>
+                )}
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/35">
+                CUMULATIVE LOGGED
+              </span>
+              <span className="text-white font-extrabold">
+                <span className="text-blue-300 font-mono font-bold">{totalHoursLoggedAll} hrs</span> Total Recorded
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/35">
+                SHIFT SCHEDULE
+              </span>
+              <span className="text-white font-extrabold">
+                {user?.shiftStartTime || '09:00'} &ndash; {user?.shiftEndTime || '18:00'} ({user?.fullName || 'Operator'})
+              </span>
+            </div>
+
+            {todayCelebration && (
+              <>
+                <span className="text-slate-600 font-black">◆</span>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-pink-500/20 text-pink-300 border border-pink-500/35">
+                    CELEBRATION 🎉
+                  </span>
+                  <span className="text-pink-300 font-extrabold">
+                    {todayCelebration.fullName} ({todayCelebration.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${todayCelebration.years} Years) 🎖️`})
+                  </span>
+                </div>
+              </>
+            )}
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/35">
+                OKR PROGRESS
+              </span>
+              <span className="text-white font-extrabold">
+                <span className="text-indigo-300 font-mono font-bold">{okrsSummary.progress || 0}%</span> Completed &bull; {okrsSummary.count || 0} Targets Active
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-yellow-500/20 text-yellow-300 border border-yellow-500/35">
+                PEER KUDOS
+              </span>
+              <span className="text-white font-extrabold">
+                <span className="text-yellow-300 font-mono font-bold">{kudosStats.totalPoints || 0} Points</span> &bull; {kudosStats.receivedCount || 0} Badges
+              </span>
+            </div>
+
+            <span className="text-slate-600 font-black">◆</span>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Android APK Download Card/Banner */}
       {showDownloadBanner && (
@@ -1013,7 +1327,7 @@ export default function DashboardPage() {
             {tasks.length === 0 ? (
               <p className="text-[11px] font-mono text-center py-8 text-slate-500 italic">NO ASSIGNED MISSION CAPSULES.</p>
             ) : (
-              tasks.map(task => (
+              tasks.slice(0, 4).map(task => (
                 <div
                   key={task._id}
                   className="flex items-center justify-between gap-3 px-3 py-2.5 rounded border"
@@ -1071,7 +1385,7 @@ export default function DashboardPage() {
             {leaves.length === 0 ? (
               <p className="text-[11px] font-mono text-center py-8 text-slate-500 italic">NO TIME OFF REGISTRY DETECTED.</p>
             ) : (
-              leaves.map(leave => (
+              leaves.slice(0, 4).map(leave => (
                 <div
                   key={leave._id}
                   className="flex items-center justify-between gap-3 px-3 py-2.5 rounded border"
