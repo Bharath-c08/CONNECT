@@ -18,6 +18,7 @@ import {
   RotateCcw,
   UserPlus,
   UserCheck,
+  CalendarX,
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../../../utils/api';
 import { generatePayslipPDF } from '../../../utils/export';
@@ -56,6 +57,10 @@ export default function PayslipPage() {
   const [tdsPercent, setTdsPercent] = useState(10);
   const [pfPercent,  setPfPercent]  = useState(12);
 
+  // Unpaid Leave Deduction overrides (deducted directly from Basic Pay)
+  const [unpaidLeaveDays, setUnpaidLeaveDays] = useState<string>('0');
+  const [unpaidLeaveDeductionAmount, setUnpaidLeaveDeductionAmount] = useState<string>('0');
+
   // Editable parameters (temporary overrides for payslip generation)
   const [customBasicPay, setCustomBasicPay]     = useState<string>('');
   const [customWorkingDays, setCustomWorkingDays] = useState<string>('');
@@ -76,6 +81,8 @@ export default function PayslipPage() {
     totalHours: '160',
     otHours: '0',
     otPay: '0',
+    unpaidDays: '0',
+    unpaidDeduction: '0',
   });
 
   // Fetched payslip data
@@ -118,6 +125,11 @@ export default function PayslipPage() {
       setCustomWorkingDays(String(data.workingDays ?? 0));
       setCustomTotalHours(String((data.totalMinutes / 60).toFixed(2)));
       setCustomOtHours(String((data.totalOTMinutes / 60).toFixed(2)));
+      const days = data.unpaidLeaveDays ?? 0;
+      setUnpaidLeaveDays(String(days));
+      const bPay = Number(data.employee?.basicPay ?? 0);
+      const wDays = Number(data.workingDays ?? 26) || 26;
+      setUnpaidLeaveDeductionAmount(days > 0 && bPay > 0 ? String(Math.round((bPay / wDays) * days)) : '0');
     } catch (err: any) {
       setError(err.message || 'Failed to fetch payslip data.');
     } finally {
@@ -131,17 +143,27 @@ export default function PayslipPage() {
     setCustomWorkingDays(String(payslipData.workingDays ?? 0));
     setCustomTotalHours(String((payslipData.totalMinutes / 60).toFixed(2)));
     setCustomOtHours(String((payslipData.totalOTMinutes / 60).toFixed(2)));
+    const days = payslipData.unpaidLeaveDays ?? 0;
+    setUnpaidLeaveDays(String(days));
+    const bPay = Number(payslipData.employee?.basicPay ?? 0);
+    const wDays = Number(payslipData.workingDays ?? 26) || 26;
+    setUnpaidLeaveDeductionAmount(days > 0 && bPay > 0 ? String(Math.round((bPay / wDays) * days)) : '0');
   };
 
   const buildPayslipPayload = useCallback(() => {
     if (isManualMode) {
-      const basicPay = Number(manualForm.basicPay) || 0;
+      const rawBasicPay = Number(manualForm.basicPay) || 0;
+      const unpaidDeduction = Math.max(0, Number(manualForm.unpaidDeduction) || Number(unpaidLeaveDeductionAmount) || 0);
+      const basicPay = Math.max(0, rawBasicPay - unpaidDeduction);
       const overtimePay = Number(manualForm.otPay) || 0;
+      const workingDays = Number(manualForm.workingDays) || 0;
+      const unpaidDays = Number(manualForm.unpaidDays) || Number(unpaidLeaveDays) || 0;
+
       const grossEarnings = basicPay + overtimePay;
       const tds = (grossEarnings * tdsPercent) / 100;
       const pf  = (grossEarnings * pfPercent)  / 100;
       const totalDeductions = tds + pf;
-      const netPay = grossEarnings - totalDeductions;
+      const netPay = Math.max(0, grossEarnings - totalDeductions);
 
       return {
         employee: {
@@ -161,6 +183,9 @@ export default function PayslipPage() {
           year:  selectedYear,
         },
         earnings: {
+          rawBasicPay,
+          unpaidLeaveDeduction: unpaidDeduction,
+          unpaidLeaveDays: unpaidDays,
           basicPay,
           overtimePay,
           grossEarnings,
@@ -171,7 +196,7 @@ export default function PayslipPage() {
           totalDeductions,
         },
         netPay,
-        workingDays: Number(manualForm.workingDays) || 0,
+        workingDays,
         totalHours: Number(manualForm.totalHours) || 0,
         otHours: Number(manualForm.otHours) || 0,
       };
@@ -181,9 +206,12 @@ export default function PayslipPage() {
     const { employee, overtimePay: fetchedOtPay, totalMinutes, totalOTMinutes, workingDays: fetchedWorkingDays } = payslipData;
 
     // Use custom overrides if valid numbers, fallback to fetched defaults
-    const basicPay = customBasicPay !== '' && !isNaN(Number(customBasicPay))
+    const rawBasicPay = customBasicPay !== '' && !isNaN(Number(customBasicPay))
       ? Number(customBasicPay)
       : (employee.basicPay || 0);
+
+    const unpaidDeduction = Math.max(0, Number(unpaidLeaveDeductionAmount) || 0);
+    const basicPay = Math.max(0, rawBasicPay - unpaidDeduction);
 
     const workingDays = customWorkingDays !== '' && !isNaN(Number(customWorkingDays))
       ? Number(customWorkingDays)
@@ -208,11 +236,12 @@ export default function PayslipPage() {
       }
     }
 
+    const unpaidDays = Number(unpaidLeaveDays) || 0;
     const grossEarnings = basicPay + overtimePay;
     const tds = (grossEarnings * tdsPercent) / 100;
     const pf  = (grossEarnings * pfPercent)  / 100;
     const totalDeductions = tds + pf;
-    const netPay = grossEarnings - totalDeductions;
+    const netPay = Math.max(0, grossEarnings - totalDeductions);
 
     return {
       employee: {
@@ -232,6 +261,9 @@ export default function PayslipPage() {
         year:  selectedYear,
       },
       earnings: {
+        rawBasicPay,
+        unpaidLeaveDeduction: unpaidDeduction,
+        unpaidLeaveDays: unpaidDays,
         basicPay,
         overtimePay,
         grossEarnings,
@@ -246,7 +278,21 @@ export default function PayslipPage() {
       totalHours,
       otHours,
     };
-  }, [isManualMode, manualForm, payslipData, customBasicPay, customWorkingDays, customTotalHours, customOtHours, tdsPercent, pfPercent, selectedMonth, selectedYear]);
+  }, [
+    isManualMode,
+    manualForm,
+    payslipData,
+    customBasicPay,
+    customWorkingDays,
+    customTotalHours,
+    customOtHours,
+    unpaidLeaveDays,
+    unpaidLeaveDeductionAmount,
+    tdsPercent,
+    pfPercent,
+    selectedMonth,
+    selectedYear,
+  ]);
 
   const handleDownloadPDF = async () => {
     const payload = buildPayslipPayload();
@@ -463,7 +509,12 @@ export default function PayslipPage() {
 
               {/* Deductions */}
               <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">DEDUCTION RATES</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">DEDUCTION RATES</p>
+                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-wider">
+                    Statutory & Policy Overrides
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="form-group">
                     <label className="form-label mb-1">TDS %</label>
@@ -485,7 +536,55 @@ export default function PayslipPage() {
                       className="input font-mono"
                     />
                   </div>
+                  <div className="form-group">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="form-label text-[9px] text-slate-400">UNPAID LEAVE (DAYS)</label>
+                      {payslipData?.unpaidLeaveDays !== undefined && payslipData.unpaidLeaveDays > 0 && (
+                        <span className="text-[8px] font-mono text-slate-500" title="Auto-detected from approved unpaid leave requests">
+                          Logged: {payslipData.unpaidLeaveDays}d
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={31}
+                      step={0.5}
+                      value={unpaidLeaveDays}
+                      onChange={(e) => {
+                        const days = e.target.value;
+                        setUnpaidLeaveDays(days);
+                        const dNum = Number(days) || 0;
+                        const bPay = Number(customBasicPay) || payslipData?.employee?.basicPay || 0;
+                        const wDays = Number(customWorkingDays) || payslipData?.workingDays || 26;
+                        if (dNum > 0 && bPay > 0) {
+                          setUnpaidLeaveDeductionAmount(String(Math.round((bPay / wDays) * dNum)));
+                        } else if (dNum === 0) {
+                          setUnpaidLeaveDeductionAmount('0');
+                        }
+                      }}
+                      className="input font-mono text-xs"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">UNPAID LEAVE DEDUCTION (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={unpaidLeaveDeductionAmount}
+                      onChange={(e) => setUnpaidLeaveDeductionAmount(e.target.value)}
+                      className="input font-mono text-xs"
+                      placeholder="0 (Deducted from Basic Pay)"
+                    />
+                  </div>
                 </div>
+                {Number(unpaidLeaveDeductionAmount) > 0 && (
+                  <p className="mt-2 text-[8px] text-rose-400 font-mono tracking-wider">
+                    * ₹{Number(unpaidLeaveDeductionAmount).toFixed(2)} is deducted directly from Basic Pay before calculating gross earnings.
+                  </p>
+                )}
               </div>
 
               {/* Actions */}
@@ -657,6 +756,28 @@ export default function PayslipPage() {
                       className="input font-mono text-xs"
                     />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">UNPAID LEAVE (DAYS)</label>
+                    <input
+                      type="number"
+                      min={0} max={31} step={0.5}
+                      value={manualForm.unpaidDays}
+                      onChange={(e) => setManualForm({ ...manualForm, unpaidDays: e.target.value })}
+                      className="input font-mono text-xs"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label mb-1 text-[9px] text-slate-400">UNPAID LEAVE DEDUCTION (₹)</label>
+                    <input
+                      type="number"
+                      min={0} step={100}
+                      value={manualForm.unpaidDeduction}
+                      onChange={(e) => setManualForm({ ...manualForm, unpaidDeduction: e.target.value })}
+                      className="input font-mono text-xs"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -792,12 +913,20 @@ export default function PayslipPage() {
                     <span className="text-[9px] font-extrabold text-[#ef4444] uppercase tracking-widest">EARNINGS</span>
                   </div>
                   {[
-                    ['Basic Pay (Monthly)', preview.earnings.basicPay],
+                    ['Basic Pay (Monthly)', preview.earnings.rawBasicPay ?? preview.earnings.basicPay],
+                    ...(preview.earnings.unpaidLeaveDeduction > 0
+                      ? [[
+                          `Less: Unpaid Leave${preview.earnings.unpaidLeaveDays > 0 ? ` (${preview.earnings.unpaidLeaveDays} ${preview.earnings.unpaidLeaveDays === 1 ? 'day' : 'days'})` : ''}`,
+                          -preview.earnings.unpaidLeaveDeduction
+                        ]]
+                      : []),
                     ['Overtime Pay', preview.earnings.overtimePay],
                   ].map(([label, val]) => (
                     <div key={String(label)} className="flex justify-between px-5 py-2.5 border-b last:border-b-0 text-[11px]" style={{ borderColor: 'var(--border)' }}>
-                      <span className="text-slate-400">{label}</span>
-                      <span className="text-slate-200 font-mono font-semibold">₹{Number(val).toFixed(2)}</span>
+                      <span className={Number(val) < 0 ? 'text-rose-400' : 'text-slate-400'}>{label}</span>
+                      <span className={`font-mono font-semibold ${Number(val) < 0 ? 'text-rose-300' : 'text-slate-200'}`}>
+                        {Number(val) < 0 ? `-₹${Math.abs(Number(val)).toFixed(2)}` : `₹${Number(val).toFixed(2)}`}
+                      </span>
                     </div>
                   ))}
                   <div className="flex justify-between px-5 py-3 text-[11px] font-extrabold" style={{ background: 'rgba(52,211,153,0.07)' }}>

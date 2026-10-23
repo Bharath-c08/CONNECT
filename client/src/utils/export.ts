@@ -164,7 +164,10 @@ export interface PayslipData {
   };
   period: { month: string; year: string };
   earnings: {
-    basicPay: number;       // fixed monthly salary from employee record
+    rawBasicPay?: number;
+    unpaidLeaveDeduction?: number;
+    unpaidLeaveDays?: number;
+    basicPay: number;       // payable monthly basic pay after unpaid leave deduction
     overtimePay: number;
     grossEarnings: number;
   };
@@ -371,13 +374,23 @@ export async function generatePayslipPDF(data: PayslipData, elementId?: string):
   y += 24;
 
   // ── Earnings & Deductions Table ───────────────────────────────
-  const earningsRows = [
-    ['Basic Pay (Monthly)', `Rs. ${data.earnings.basicPay.toFixed(2)}`],
-    ['Overtime Pay',        `Rs. ${data.earnings.overtimePay.toFixed(2)}`],
-    ['GROSS EARNINGS',      `Rs. ${data.earnings.grossEarnings.toFixed(2)}`],
+  const earningsRows: string[][] = [
+    ['Basic Pay (Monthly)', `Rs. ${(data.earnings.rawBasicPay ?? data.earnings.basicPay).toFixed(2)}`],
   ];
 
-  const deductionsRows = [
+  if (data.earnings.unpaidLeaveDeduction && data.earnings.unpaidLeaveDeduction > 0) {
+    const daysLabel = data.earnings.unpaidLeaveDays
+      ? ` (${data.earnings.unpaidLeaveDays} ${data.earnings.unpaidLeaveDays === 1 ? 'day' : 'days'})`
+      : '';
+    earningsRows.push([`Less: Unpaid Leave${daysLabel}`, `-Rs. ${data.earnings.unpaidLeaveDeduction.toFixed(2)}`]);
+  }
+
+  earningsRows.push(
+    ['Overtime Pay', `Rs. ${data.earnings.overtimePay.toFixed(2)}`],
+    ['GROSS EARNINGS', `Rs. ${data.earnings.grossEarnings.toFixed(2)}`]
+  );
+
+  const deductionsRows: string[][] = [
     ['Tax Deducted at Source (TDS)', `Rs. ${data.deductions.tds.toFixed(2)}`],
     ['Provident Fund (PF)', `Rs. ${data.deductions.pf.toFixed(2)}`],
     ['TOTAL DEDUCTIONS', `Rs. ${data.deductions.totalDeductions.toFixed(2)}`],

@@ -28,14 +28,12 @@ import {
   Trophy,
   Target,
   Sparkles,
-  ShieldCheck,
-  Eye
+  ShieldCheck
 } from 'lucide-react';
 import { apiRequest, getAuthToken, removeAuthToken, getCurrentUser, getSocketUrl } from '../../utils/api';
 import { playNotificationSound } from '../../utils/audio';
 import { io, Socket } from 'socket.io-client';
 import CallOverlay from '../../components/CallOverlay';
-import CameraMonitorReceiver from '../../components/CameraMonitorReceiver';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
@@ -353,7 +351,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'OKRs & Performance', index: '12', href: '/dashboard/okrs', icon: Target, role: 'all' },
     { name: 'CONNECT AI Assistant', index: '13', href: '/dashboard/ai', icon: Sparkles, role: 'all' },
     { name: 'Identity & Compliance', index: '14', href: '/dashboard/onboarding', icon: ShieldCheck, role: 'all' },
-    { name: 'Super Admin Monitor', index: '15', href: '/dashboard/monitor', icon: Eye, role: 'superadmin' },
   ];
 
   // Helper to determine if user can see nav link
@@ -379,7 +376,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex scanlines cyber-grid-bg" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
       <CallOverlay socket={globalSocket} currentUser={user} />
-      <CameraMonitorReceiver socket={globalSocket} currentUser={user} />
 
       {/* ── LEFT SIDEBAR (Desktop) ── */}
       <aside

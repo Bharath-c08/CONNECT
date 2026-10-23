@@ -1,6 +1,7 @@
 import express from 'express';
 import Session from '../models/Session.js';
 import User from '../models/User.js';
+import LeaveRequest from '../models/LeaveRequest.js';
 import BreakType from '../models/BreakType.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 import { calculateNetWorkingMinutes } from '../utils/shift.js';
@@ -370,6 +371,29 @@ router.get('/admin/payslip-data', verifyToken, isAdminOrSuperAdmin, async (req, 
       workingDaysSet.add(new Date(s.clockIn).toDateString());
     });
 
+    // Count approved unpaid leave days within the month
+    let unpaidLeaveDays = 0;
+    try {
+      const approvedUnpaidLeaves = await LeaveRequest.find({
+        userId,
+        leaveType: 'unpaid',
+        status: 'approved',
+        startDate: { $lt: endDate },
+        endDate: { $gte: startDate },
+      });
+
+      approvedUnpaidLeaves.forEach((lr) => {
+        const s = new Date(Math.max(new Date(lr.startDate).getTime(), startDate.getTime()));
+        const e = new Date(Math.min(new Date(lr.endDate).getTime(), endDate.getTime() - 1));
+        if (e >= s) {
+          const days = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          unpaidLeaveDays += Math.max(0, days);
+        }
+      });
+    } catch (leaveErr) {
+      console.warn('Could not query unpaid leaves for payslip:', leaveErr.message);
+    }
+
     res.json({
       employee,
       totalMinutes,
@@ -378,6 +402,7 @@ router.get('/admin/payslip-data', verifyToken, isAdminOrSuperAdmin, async (req, 
       overtimePay:  Math.round(totalOvertimePay * 100) / 100,
       workingDays:  workingDaysSet.size,
       sessionCount: sessions.length,
+      unpaidLeaveDays,
     });
   } catch (error) {
     res.status(500).json({ message: 'Error generating payslip data', error: error.message });
