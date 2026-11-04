@@ -45,6 +45,7 @@ export default function LeavesPlannerPage() {
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [myAllowances, setMyAllowances] = useState<any>({ limits: {}, usage: {} });
+  const [operatorBalances, setOperatorBalances] = useState<Record<string, Record<string, any>>>({});
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'my' | 'admin_pending' | 'admin_history' | 'admin_limits' | 'admin_policies'>('my');
 
@@ -132,6 +133,11 @@ export default function LeavesPlannerPage() {
     try {
       const cats = await apiRequest('/leaves/categories');
       setGlobalCategories(cats);
+
+      const balances = await apiRequest('/leaves/balances').catch(() => null);
+      if (balances) {
+        setOperatorBalances(balances);
+      }
     } catch (err) {
       console.error('Error fetching global leave categories:', err);
     }
@@ -166,6 +172,11 @@ export default function LeavesPlannerPage() {
 
       const cats = await apiRequest('/leaves/categories');
       setGlobalCategories(cats);
+
+      const balances = await apiRequest('/leaves/balances').catch(() => null);
+      if (balances) {
+        setOperatorBalances(balances);
+      }
     } catch (err) {
       console.error('Error fetching company leaves logs:', err);
     } finally {
@@ -456,7 +467,7 @@ export default function LeavesPlannerPage() {
 
   const getLimitValue = (emp: any, type: string) => {
     const matched = globalCategories.find(c => c.name === type);
-    const defaultDays = matched ? matched.defaultDays : (type === 'sick' ? 2 : 10);
+    const defaultDays = matched ? matched.defaultDays : (type === 'sick' ? 2 : type === 'unpaid' ? 365 : 10);
 
     if (type === 'sick') {
       if (!emp?.leaveLimits) return 2;
@@ -464,11 +475,55 @@ export default function LeavesPlannerPage() {
       return (val !== undefined && val !== null) ? Math.min(Number(val), 2) : 2;
     }
 
+    if (type === 'unpaid') {
+      const val = typeof emp?.leaveLimits?.get === 'function' ? emp.leaveLimits.get(type) : emp?.leaveLimits?.[type];
+      if (val !== undefined && val !== null && Number(val) > 0) {
+        return Number(val);
+      }
+      return (matched?.defaultDays && matched.defaultDays > 0) ? matched.defaultDays : 365;
+    }
+
     if (!emp?.leaveLimits) return defaultDays;
     if (typeof emp.leaveLimits.get === 'function') {
       return emp.leaveLimits.get(type) ?? defaultDays;
     }
     return emp.leaveLimits[type] ?? defaultDays;
+  };
+
+  const getUsedDaysInMonth = (empId: string, leaveType: string) => {
+    if (operatorBalances[empId]?.[leaveType]?.used !== undefined) {
+      return operatorBalances[empId][leaveType].used;
+    }
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const matching = allRequests.filter((r: any) => {
+      const rUid = r.userId?._id ? String(r.userId._id) : String(r.userId || '');
+      if (rUid !== String(empId)) return false;
+      if (r.leaveType !== leaveType) return false;
+      if (r.status !== 'approved') return false;
+      const rStart = new Date(r.startDate);
+      return rStart >= startOfMonth && rStart <= endOfMonth;
+    });
+
+    return matching.reduce((sum: number, r: any) => {
+      const s = new Date(r.startDate).getTime();
+      const e = new Date(r.endDate).getTime();
+      const days = Math.ceil((e - s) / (1000 * 60 * 60 * 24)) + 1;
+      return sum + Math.max(0, days);
+    }, 0);
+  };
+
+  const getAvailableDaysInMonth = (emp: any, leaveType: string) => {
+    if (operatorBalances[emp._id]?.[leaveType]?.available !== undefined) {
+      return operatorBalances[emp._id][leaveType].available;
+    }
+
+    const limit = getLimitValue(emp, leaveType);
+    const used = getUsedDaysInMonth(emp._id, leaveType);
+    return Math.max(0, limit - used);
   };
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
@@ -601,7 +656,14 @@ export default function LeavesPlannerPage() {
                   <div className="absolute top-1 left-2 text-[6px] opacity-15 uppercase">{type}_TELEMETRY</div>
                   <div className="flex justify-between items-center mb-2.5 mt-1.5 font-mono">
                     <span className="text-[10px] font-extrabold uppercase text-slate-400">{c.label}</span>
-                    <span className="text-[10px] font-black text-white">{used} / {limit} D</span>
+                    <div className="text-right">
+                      <span className={`text-[11px] font-black ${limit - used <= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {Math.max(0, limit - used)} AVAILABLE
+                      </span>
+                      <span className="text-[9px] text-slate-500 block font-normal">
+                        ({used} used of {limit}D)
+                      </span>
+                    </div>
                   </div>
                   {/* Progress bar */}
                   <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-white/5">
@@ -757,7 +819,12 @@ export default function LeavesPlannerPage() {
                     <tr className="border-b bg-zinc-950/50 font-extrabold text-slate-400 uppercase tracking-widest" style={{ borderColor: 'var(--border)' }}>
                       <th className="py-3.5 px-5">OPERATOR</th>
                       {globalCategories.filter((c: any) => c.isActive).map((c: any) => (
-                        <th key={c.name} className="py-3.5 px-5 text-center uppercase">{c.label}</th>
+                        <th key={c.name} className="py-3.5 px-5 text-center uppercase">
+                          <div>{c.label}</div>
+                          <div className="text-[8px] text-slate-500 font-normal tracking-wider lowercase">
+                            {c.name === 'sick' ? '(2 days/mo cap)' : '(monthly available)'}
+                          </div>
+                        </th>
                       ))}
                       <th className="py-3.5 px-5 text-right">ACTION</th>
                     </tr>
@@ -775,13 +842,29 @@ export default function LeavesPlannerPage() {
                         {globalCategories.filter((c: any) => c.isActive).map((c: any) => {
                           const isDisabled = (emp.disabledLeaves || []).includes(c.name);
                           const limit = getLimitValue(emp, c.name);
-                          return (
-                            <td key={c.name} className="py-3 px-5 text-center font-bold">
-                              {isDisabled ? (
+                          const used = getUsedDaysInMonth(emp._id, c.name);
+                          const available = Math.max(0, limit - used);
+
+                          if (isDisabled) {
+                            return (
+                              <td key={c.name} className="py-3 px-5 text-center font-bold">
                                 <span className="text-slate-600 uppercase text-[9px] line-through select-none font-normal">DISABLED</span>
-                              ) : (
-                                <span className="text-[#ef4444]/80 font-mono">{limit} {c.name === 'sick' ? 'DAYS/MO' : 'DAYS'}</span>
-                              )}
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td key={c.name} className="py-3 px-5 text-center font-mono">
+                              <div className={`font-extrabold text-xs ${available === 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {available} DAYS AVAIL
+                              </div>
+                              <div className="text-[9px] text-slate-500 mt-0.5">
+                                {used > 0 ? (
+                                  <span className="text-amber-400/90 font-semibold">{used} used / {limit} cap</span>
+                                ) : (
+                                  <span>0 used / {limit} cap</span>
+                                )}
+                              </div>
                             </td>
                           );
                         })}
@@ -1058,22 +1141,24 @@ export default function LeavesPlannerPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="form-group">
                           <label className="form-label mb-1">Disconnect Date *</label>
-                          <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                          <div className="relative flex items-center">
                             <input
                               type="date"
                               required
                               name="startDate"
                               value={formData.startDate}
                               onChange={handleInputChange}
-                              className="input pl-9"
+                              onClick={(e) => (e.currentTarget as any).showPicker?.()}
+                              className="input pr-10 pl-3.5 text-xs w-full cursor-pointer [color-scheme:dark]"
                             />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
+                              <Calendar className="w-4 h-4 text-[#ef4444]" />
+                            </div>
                           </div>
                         </div>
                         <div className="form-group">
                           <label className="form-label mb-1">Return Date *</label>
-                          <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                          <div className="relative flex items-center">
                             <input
                               type="date"
                               required
@@ -1082,8 +1167,12 @@ export default function LeavesPlannerPage() {
                               max={maxEndDate}
                               value={formData.endDate}
                               onChange={handleInputChange}
-                              className="input pl-9"
+                              onClick={(e) => (e.currentTarget as any).showPicker?.()}
+                              className="input pr-10 pl-3.5 text-xs w-full cursor-pointer [color-scheme:dark]"
                             />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
+                              <Calendar className="w-4 h-4 text-[#ef4444]" />
+                            </div>
                           </div>
                         </div>
                       </div>

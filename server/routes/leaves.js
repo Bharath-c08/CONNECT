@@ -60,12 +60,20 @@ router.post('/', verifyToken, async (req, res) => {
       usedDays += days;
     });
 
-    const policyDefault = leaveType === 'sick' ? 2 : category.defaultDays;
+    let policyDefault = category.defaultDays;
+    if (leaveType === 'sick') policyDefault = 2;
+    if (leaveType === 'unpaid') policyDefault = (policyDefault > 0) ? policyDefault : 365;
+
     const rawLimit = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
       ? (user.leaveLimits.get(leaveType) ?? policyDefault)
       : (user.leaveLimits?.[leaveType] ?? policyDefault);
 
-    const limit = leaveType === 'sick' ? Math.min(Number(rawLimit || 2), 2) : Number(rawLimit || policyDefault);
+    let limit = Number(rawLimit ?? policyDefault);
+    if (leaveType === 'sick') {
+      limit = Math.min(Number(rawLimit || 2), 2);
+    } else if (leaveType === 'unpaid') {
+      limit = (limit > 0) ? limit : 365;
+    }
 
     if (requestedDays <= 0) {
       return res.status(400).json({ message: 'Invalid departure duration. Minimum leave duration is 1 day.' });
@@ -301,17 +309,92 @@ router.get('/my-limits', verifyToken, async (req, res) => {
       const raw = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
         ? (user.leaveLimits.get(c.name) ?? c.defaultDays)
         : (user.leaveLimits?.[c.name] ?? c.defaultDays);
-      limits[c.name] = c.name === 'sick' ? Math.min(Number(raw || 2), 2) : Number(raw || c.defaultDays);
+
+      if (c.name === 'sick') {
+        limits[c.name] = Math.min(Number(raw || 2), 2);
+      } else if (c.name === 'unpaid') {
+        const numVal = Number(raw);
+        limits[c.name] = (numVal > 0) ? numVal : (c.defaultDays > 0 ? c.defaultDays : 365);
+      } else {
+        limits[c.name] = Number(raw || c.defaultDays);
+      }
+    });
+
+    const available = {};
+    categories.forEach(c => {
+      available[c.name] = Math.max(0, (limits[c.name] || 0) - (usage[c.name] || 0));
     });
 
     res.json({
       limits,
       usage,
+      available,
       disabled: user.disabledLeaves || [],
       categories
     });
   } catch (err) {
     res.status(500).json({ message: 'Error retrieving leave balances.', error: err.message });
+  }
+});
+
+// @route   GET /api/leaves/balances
+// @desc    Get real-time monthly leave balances (limits, used this month, available) for all users
+router.get('/balances', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password');
+    const categories = await LeaveCategory.find({ isActive: true });
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+    const monthlyApprovedLeaves = await LeaveRequest.find({
+      status: 'approved',
+      startDate: { $gte: startOfMonth, $lte: endOfMonth }
+    });
+
+    const balances = {};
+    users.forEach(u => {
+      const uid = u._id.toString();
+      balances[uid] = {};
+
+      categories.forEach(c => {
+        const raw = (u.leaveLimits && typeof u.leaveLimits.get === 'function')
+          ? u.leaveLimits.get(c.name)
+          : u.leaveLimits?.[c.name];
+
+        let limit = Number(raw ?? c.defaultDays);
+        if (c.name === 'sick') {
+          limit = 2; // Strict 2 days per month policy
+        } else if (c.name === 'unpaid') {
+          limit = (limit > 0) ? limit : (c.defaultDays > 0 ? c.defaultDays : 365);
+        }
+
+        const userRequests = monthlyApprovedLeaves.filter(
+          r => (r.userId?.toString() === uid || r.userId?._id?.toString() === uid) && r.leaveType === c.name
+        );
+        const used = userRequests.reduce((sum, r) => {
+          const s = new Date(r.startDate).getTime();
+          const e = new Date(r.endDate).getTime();
+          const days = Math.ceil((e - s) / (1000 * 60 * 60 * 24)) + 1;
+          return sum + Math.max(0, days);
+        }, 0);
+
+        const available = Math.max(0, limit - used);
+        balances[uid][c.name] = {
+          limit,
+          used,
+          available,
+          isDisabled: (u.disabledLeaves || []).includes(c.name)
+        };
+      });
+    });
+
+    res.json(balances);
+  } catch (err) {
+    res.status(500).json({ message: 'Error calculating operator balances', error: err.message });
   }
 });
 

@@ -319,15 +319,20 @@ async function seedDefaultLeaveCategories() {
 // Sync and migrate leave policies and clamp sick leave balance to 2 days/month
 async function syncLeavePoliciesAndUserLimits() {
   try {
-    // 1. Ensure sick category is exactly 2 defaultDays in DB
+    // 1. Ensure sick category is exactly 2 defaultDays, and unpaid category is 365 defaultDays in DB
     await LeaveCategory.findOneAndUpdate(
       { name: 'sick' },
       { $set: { defaultDays: 2, label: 'Sick Leave Protocol', isActive: true } },
       { upsert: true, new: true }
     );
-    console.log('LeaveCategory [sick] synchronized to 2 days/month default.');
+    await LeaveCategory.findOneAndUpdate(
+      { name: 'unpaid' },
+      { $set: { defaultDays: 365, label: 'Unpaid Sleep Mode', isActive: true } },
+      { upsert: true, new: true }
+    );
+    console.log('LeaveCategory [sick] (2d/mo) and [unpaid] (365d) synchronized.');
 
-    // 2. Scan all existing users and clamp/set sick leave balance to 2
+    // 2. Scan all existing users and sync leave limits
     const users = await User.find({});
     let updatedUsersCount = 0;
     for (const u of users) {
@@ -354,6 +359,19 @@ async function syncLeavePoliciesAndUserLimits() {
           }
           changed = true;
         }
+
+        const currentUnpaid = (typeof u.leaveLimits.get === 'function')
+          ? u.leaveLimits.get('unpaid')
+          : u.leaveLimits['unpaid'];
+
+        if (currentUnpaid === undefined || currentUnpaid === null || currentUnpaid === 0) {
+          if (typeof u.leaveLimits.set === 'function') {
+            u.leaveLimits.set('unpaid', 365);
+          } else {
+            u.leaveLimits['unpaid'] = 365;
+          }
+          changed = true;
+        }
       }
 
       if (changed) {
@@ -362,7 +380,7 @@ async function syncLeavePoliciesAndUserLimits() {
       }
     }
     if (updatedUsersCount > 0) {
-      console.log(`Synchronized leave limits for ${updatedUsersCount} users: Sick leave clamped to 2 days/month.`);
+      console.log(`Synchronized leave limits for ${updatedUsersCount} users: Sick clamped to 2, Unpaid restored to 365.`);
     }
   } catch (err) {
     console.error('Error synchronizing leave policies and limits:', err);
