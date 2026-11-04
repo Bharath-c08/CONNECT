@@ -75,8 +75,9 @@ const HR_POLICIES = [
     title: 'Annual & Sick Leave Entitlement Policy',
     category: 'leave',
     summary: 'Rules governing casual departures, medical emergencies, and annual leave accruals.',
-    details: `Employees are allocated 15 Annual Days, 10 Sick Days, and 10 Casual Disconnect Days per year.
+    details: `Employees are allocated 15 Annual Days, 2 Sick Days per month (monthly auto-reset), and 10 Casual Disconnect Days per year.
     
+    • Sick leave allocation is strictly 2 days per calendar month. Requests exceeding remaining days cannot be approved.
     • Casual leaves require at least 24 hours prior submission via CONNECT System.
     • Sick leave over 2 consecutive days requires medical documentation.
     • Unused annual leave up to 5 days rolls over to the next financial year.`,
@@ -322,7 +323,7 @@ Role: ${targetUser.jobTitle || 'Team Operator'} | Grade: ${(targetUser.role || '
 - Overtime Hours Accrued: ${targetPeriod === 'daily' ? 0.5 : targetPeriod === 'monthly' ? 12.0 : 2.5} Hours
 
 3. Leave Utilization & Compliance:
-- Sick Leave: 2 / 10 Days Used
+- Sick Leave: 1 / 2 Days Used this month (Allocation: 2 Days/Mo)
 - Casual Disconnect: 2 / 10 Days Used
 - Annual Vacation: 0 / 15 Days Used
 - Pending Time-off Requests: 1
@@ -884,7 +885,7 @@ Role: ${targetUser.jobTitle || 'Team Operator'} | Grade: ${(targetUser.role || '
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
               <p className="text-slate-400">
-                Leave Limits: Sick (10d) • Casual (10d) • Annual (15d)
+                Leave Limits: Sick (2d/mo) • Casual (10d) • Annual (15d)
               </p>
               <p className="text-slate-500 text-[9px]">
                 Ask CONNECT AI for customized balance calculations anytime.

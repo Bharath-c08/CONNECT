@@ -15,8 +15,8 @@ router.get('/', verifyToken, async (req, res) => {
     }
     const { limit = 30 } = req.query;
     const kudos = await Kudos.find()
-      .populate('senderId', 'fullName jobTitle employeeId')
-      .populate('receiverId', 'fullName jobTitle employeeId')
+      .populate('senderId', 'fullName jobTitle employeeId profilePhoto')
+      .populate('receiverId', 'fullName jobTitle employeeId profilePhoto')
       .sort({ createdAt: -1 })
       .limit(Number(limit));
 
@@ -63,6 +63,7 @@ router.get('/leaderboard', verifyToken, async (req, res) => {
           'user.jobTitle': 1,
           'user.employeeId': 1,
           'user.role': 1,
+          'user.profilePhoto': 1,
         },
       },
     ]);
@@ -130,8 +131,8 @@ router.post('/', verifyToken, async (req, res) => {
     await kudos.save();
 
     const populatedKudos = await Kudos.findById(kudos._id)
-      .populate('senderId', 'fullName jobTitle employeeId')
-      .populate('receiverId', 'fullName jobTitle employeeId');
+      .populate('senderId', 'fullName jobTitle employeeId profilePhoto')
+      .populate('receiverId', 'fullName jobTitle employeeId profilePhoto');
 
     // Create system notification for receiver
     const notif = new Notification({

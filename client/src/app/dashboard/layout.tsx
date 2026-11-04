@@ -213,7 +213,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     updateTime();
     const interval = setInterval(updateTime, 1000);
 
-    return () => clearInterval(interval);
+    const handleUserUpdated = (e: any) => {
+      if (e.detail) {
+        setUser(e.detail);
+      }
+    };
+    window.addEventListener('connect:user-updated', handleUserUpdated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('connect:user-updated', handleUserUpdated);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -463,8 +473,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="w-9 h-9 rounded flex items-center justify-center shrink-0 border relative"
                 style={{ background: 'var(--brand-subtle)', borderColor: 'var(--border)' }}
               >
-                <div className="absolute top-0 right-0 w-2 h-2 rounded-full bg-emerald-500 animate-pulse border border-zinc-900" />
-                <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                <div className="absolute top-0 right-0 w-2 h-2 rounded-full bg-emerald-500 animate-pulse border border-zinc-900 z-10" />
+                {user.profilePhoto ? (
+                  <img
+                    src={user.profilePhoto}
+                    alt={user.fullName || 'User'}
+                    className="w-full h-full object-cover rounded"
+                  />
+                ) : (
+                  <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                )}
               </div>
               {!collapsed && (
                 <div className="min-w-0 flex-1 select-none">
@@ -617,8 +635,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => router.push('/dashboard/profile')}
               className="btn-icon cursor-pointer h-9 w-9"
               title="MY_PROFILE"
+              style={{ overflow: 'hidden', borderRadius: '9999px', padding: 0 }}
             >
-              <UserIcon className="w-4 h-4 text-emerald-400" />
+              {user?.profilePhoto ? (
+                <img
+                  src={user.profilePhoto}
+                  alt={user.fullName || 'User'}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                <UserIcon className="w-4 h-4 text-emerald-400" />
+              )}
             </motion.button>
 
             <motion.button
@@ -715,7 +742,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         className="w-9 h-9 rounded flex items-center justify-center shrink-0 border"
                         style={{ background: 'var(--brand-subtle)', border: '1px solid var(--border)' }}
                       >
-                        <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                        {user.profilePhoto ? (
+                  <img
+                    src={user.profilePhoto}
+                    alt={user.fullName || 'User'}
+                    className="w-full h-full object-cover rounded"
+                  />
+                ) : (
+                  <UserIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                )}
                       </div>
                       <div className="min-w-0 font-mono">
                         <p className="text-xs font-extrabold truncate" style={{ color: 'var(--text-primary)' }}>{user.fullName}</p>

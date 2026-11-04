@@ -121,6 +121,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    const handleUserUpdated = (e: any) => {
+      if (e.detail) {
+        setUser((prev: any) => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('connect:user-updated', handleUserUpdated);
+    return () => {
+      window.removeEventListener('connect:user-updated', handleUserUpdated);
+    };
+
+
   }, []);
 
   useEffect(() => {
@@ -365,6 +377,8 @@ export default function DashboardPage() {
     setClockedIn(true);
     setActiveSession(data.session);
     fetchDashboardData();
+
+
   };
 
   const handleStartBreak = async () => {
@@ -382,6 +396,8 @@ export default function DashboardPage() {
       });
       setActiveSession(data.session);
       fetchDashboardData();
+
+
     } catch (err: any) {
       setError(err.message || 'START BREAK TELEMETRY FAULT.');
     }
@@ -395,6 +411,8 @@ export default function DashboardPage() {
       });
       setActiveSession(data.session);
       fetchDashboardData();
+
+
     } catch (err: any) {
       setError(err.message || 'END BREAK TELEMETRY FAULT.');
     }
@@ -517,22 +535,60 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={springTransition}
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none font-mono"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none font-mono p-4 rounded-2xl border bg-zinc-950/40 relative overflow-hidden backdrop-blur-sm"
+          style={{ borderColor: 'var(--border)' }}
         >
-          <div>
-            <h1 className="text-xl font-extrabold tracking-widest text-[#ef4444]">
-              // ACTIVE_OPERATOR: {user.fullName.toUpperCase()}
-            </h1>
-            <p className="mt-1 text-[10px] text-slate-500 tracking-wider">
-              UPLINK DECK_01 SECURE TERMINAL ESTABLISHED.
-            </p>
+          <div className="flex items-center gap-4 min-w-0">
+            <Link href="/dashboard/profile" className="relative group shrink-0" title="Click to view/edit Operator Profile">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-red-500/40 bg-zinc-900 overflow-hidden flex items-center justify-center shadow-lg group-hover:border-cyan-400 transition-colors">
+                {user.profilePhoto ? (
+                  <img
+                    src={user.profilePhoto}
+                    alt={user.fullName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-red-400 font-extrabold text-lg">
+                    {user.fullName ? user.fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'OP'}
+                  </div>
+                )}
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-zinc-950 shadow-md animate-pulse" />
+            </Link>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
+                  {user.role || 'OPERATOR'}
+                </span>
+                <span className="text-[9px] text-slate-500 tracking-wider truncate">
+                  {user.jobTitle || 'COMMAND TERMINAL'}
+                </span>
+              </div>
+              <h1 className="text-lg sm:text-xl font-extrabold tracking-widest text-[#ef4444] truncate mt-0.5">
+                // ACTIVE_OPERATOR: {user.fullName.toUpperCase()}
+              </h1>
+              <p className="mt-0.5 text-[10px] text-slate-500 tracking-wider">
+                UPLINK DECK_01 SECURE TERMINAL ESTABLISHED &bull; ID VERIFIED
+              </p>
+            </div>
           </div>
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded text-xs select-none self-start sm:self-auto border bg-zinc-950/40"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-          >
-            <span className="opacity-45 text-[10px]">OPERATOR_ID:</span>
-            <span className="font-bold text-white tracking-widest">{user.employeeId}</span>
+
+          <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded text-xs select-none border bg-zinc-950/60"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+            >
+              <span className="opacity-45 text-[10px]">OPERATOR_ID:</span>
+              <span className="font-bold text-white tracking-widest">{user.employeeId}</span>
+            </div>
+            <Link
+              href="/dashboard/profile"
+              className="btn btn-secondary h-8 px-3 text-[10px] uppercase font-bold flex items-center gap-1.5"
+            >
+              <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <span>PROFILE</span>
+            </Link>
           </div>
         </motion.div>
       )}
@@ -940,13 +996,20 @@ export default function DashboardPage() {
                     </h3>
                     <div className="mt-1.5 space-y-1 text-xs">
                       {todayCelebrations.map((c, i) => (
-                        <p key={i} className="text-slate-200">
-                          &bull; <strong className="text-cyan-400">{c.fullName.toUpperCase()}</strong> (ID: {c.employeeId}) is celebrating a{' '}
-                          <span className="text-pink-400 font-bold uppercase">
-                            {c.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${c.years} Year${c.years > 1 ? 's' : ''}) 🎖️`}
-                          </span>{' '}
-                          today!
-                        </p>
+                        <div key={i} className="flex items-center gap-2.5 text-slate-200 py-0.5">
+                          {c.profilePhoto ? (
+                            <img src={c.profilePhoto} alt={c.fullName} className="w-6 h-6 rounded-full object-cover border border-cyan-400/50 shrink-0 shadow-sm" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+                          )}
+                          <p className="text-xs">
+                            <strong className="text-cyan-400">{c.fullName.toUpperCase()}</strong> (ID: {c.employeeId}) is celebrating a{' '}
+                            <span className="text-pink-400 font-bold uppercase">
+                              {c.type === 'birthday' ? 'Birthday 🎂' : `Work Anniversary (${c.years} Year${c.years > 1 ? 's' : ''}) 🎖️`}
+                            </span>{' '}
+                            today!
+                          </p>
+                        </div>
                       ))}
                     </div>
                   </div>

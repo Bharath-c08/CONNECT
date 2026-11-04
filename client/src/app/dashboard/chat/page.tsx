@@ -260,7 +260,12 @@ export default function ChatHubPage() {
   const handleCall = (type: 'audio' | 'video') => {
     if (!selectedUser) return;
     const event = new CustomEvent('initiate-call', {
-      detail: { toUserId: selectedUser._id, name: selectedUser.fullName, type }
+      detail: {
+        toUserId: selectedUser._id,
+        name: selectedUser.fullName,
+        photo: selectedUser.profilePhoto,
+        type
+      }
     });
     window.dispatchEvent(event);
   };
@@ -534,14 +539,18 @@ export default function ChatHubPage() {
                         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r bg-[#ef4444]" />
                       )}
                       <div className="relative shrink-0">
-                        <div className="w-7 h-7 rounded border flex items-center justify-center font-bold text-[10px]"
+                        <div className="w-7 h-7 rounded border overflow-hidden flex items-center justify-center font-bold text-[10px]"
                           style={{
                             backgroundColor: isSelected ? 'var(--brand-subtle)' : 'var(--bg-elevated)',
                             borderColor: isSelected ? 'var(--brand)' : 'var(--border)',
                             color: isSelected ? 'var(--brand)' : 'var(--text-secondary)'
                           }}
                         >
-                          {getInitials(emp.fullName)}
+                          {emp.profilePhoto ? (
+                            <img src={emp.profilePhoto} alt={emp.fullName} className="w-full h-full object-cover" />
+                          ) : (
+                            getInitials(emp.fullName)
+                          )}
                         </div>
                         {onlineUserIds.includes(emp._id) ? (
                           <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-zinc-950 shadow-sm" />
@@ -620,10 +629,14 @@ export default function ChatHubPage() {
                       </>
                     ) : (
                       <>
-                        <div className="w-8 h-8 rounded border flex items-center justify-center text-xs font-bold shrink-0"
+                        <div className="w-8 h-8 rounded border overflow-hidden flex items-center justify-center text-xs font-bold shrink-0"
                           style={{ backgroundColor: 'var(--brand-subtle)', borderColor: 'var(--border-strong)', color: 'var(--brand)' }}
                         >
-                          {getInitials(selectedUser.fullName)}
+                          {selectedUser.profilePhoto ? (
+                            <img src={selectedUser.profilePhoto} alt={selectedUser.fullName} className="w-full h-full object-cover" />
+                          ) : (
+                            getInitials(selectedUser.fullName)
+                          )}
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-xs font-extrabold tracking-widest truncate text-white uppercase">{selectedUser.fullName}</h3>
@@ -719,42 +732,67 @@ export default function ChatHubPage() {
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ type: 'spring', stiffness: 220, damping: 20 }}
-                                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-4`}
+                                className={`flex items-start gap-2.5 mb-4 ${isMe ? 'flex-row-reverse self-end' : 'flex-row self-start'} max-w-[95%] md:max-w-[85%]`}
                               >
-                                {/* Sender name badge for team discussion */}
-                                {selectedTeam && !isMe && (
-                                  <div className="text-[10px] font-extrabold mb-1 text-cyan-400 tracking-wider select-none">
-                                    [{senderName.toUpperCase()}]
-                                  </div>
-                                )}
-
-                                <div
-                                  className="px-8 py-5.5 text-sm leading-relaxed border rounded-[4px] font-mono break-words min-w-[220px] max-w-[92%] md:max-w-[82%] shadow-md"
+                                {/* Sender Avatar */}
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border overflow-hidden shrink-0 flex items-center justify-center font-bold text-[10px] select-none shadow-sm mt-0.5"
                                   style={{
-                                    backgroundColor: isMe ? 'rgba(6, 182, 212, 0.14)' : 'rgba(28, 28, 40, 0.95)',
-                                    borderColor: isMe ? 'rgba(6, 182, 212, 0.45)' : 'rgba(255, 255, 255, 0.05)',
-                                    color: isMe ? 'var(--text-primary)' : '#f8fafc'
+                                    backgroundColor: isMe ? 'rgba(6, 182, 212, 0.2)' : 'var(--bg-elevated)',
+                                    borderColor: isMe ? 'rgba(6, 182, 212, 0.5)' : 'var(--border)',
+                                    color: isMe ? 'var(--brand)' : 'var(--text-secondary)'
                                   }}
+                                  title={senderName}
                                 >
-                                  {msg.content}
+                                  {(isMe ? (currentUser?.profilePhoto) : (msg.senderId?.profilePhoto || selectedUser?.profilePhoto)) ? (
+                                    <img
+                                      src={isMe ? currentUser?.profilePhoto : (msg.senderId?.profilePhoto || selectedUser?.profilePhoto)}
+                                      alt={senderName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    getInitials(senderName)
+                                  )}
                                 </div>
 
-                                {/* Timestamp and Checkmark below bubble */}
-                                <div className="flex items-center gap-1.5 mt-1.5 px-2 text-[10px] text-slate-400 select-none">
-                                  <span>{timeString}</span>
-                                  {isMe && (
-                                    <CheckCheck className="w-3.5 h-3.5 text-brand shrink-0" />
+                                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} min-w-0 flex-1`}>
+                                  {/* Sender name badge for team discussion */}
+                                  {selectedTeam && !isMe && (
+                                    <div className="text-[10px] font-extrabold mb-1 text-cyan-400 tracking-wider select-none flex items-center gap-1.5">
+                                      <span>[{senderName.toUpperCase()}]</span>
+                                      {msg.senderId?.jobTitle && (
+                                        <span className="text-[8px] text-slate-500 font-normal">({msg.senderId.jobTitle})</span>
+                                      )}
+                                    </div>
                                   )}
-                                  {(isMe || isAdmin) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteMessage(msg._id)}
-                                      className="ml-2 text-rose-500 hover:text-rose-400 hover:scale-110 transition-all cursor-pointer flex items-center justify-center p-0.5 rounded border border-transparent hover:border-rose-500/20 bg-transparent"
-                                      title="DELETE_MESSAGE"
-                                    >
-                                      <Trash className="w-3 h-3" />
-                                    </button>
-                                  )}
+
+                                  <div
+                                    className="px-6 py-4 text-sm leading-relaxed border rounded-[6px] font-mono break-words shadow-md w-fit"
+                                    style={{
+                                      backgroundColor: isMe ? 'rgba(6, 182, 212, 0.14)' : 'rgba(28, 28, 40, 0.95)',
+                                      borderColor: isMe ? 'rgba(6, 182, 212, 0.45)' : 'rgba(255, 255, 255, 0.05)',
+                                      color: isMe ? 'var(--text-primary)' : '#f8fafc'
+                                    }}
+                                  >
+                                    {msg.content}
+                                  </div>
+
+                                  {/* Timestamp and Checkmark below bubble */}
+                                  <div className="flex items-center gap-1.5 mt-1 px-1 text-[10px] text-slate-400 select-none">
+                                    <span>{timeString}</span>
+                                    {isMe && (
+                                      <CheckCheck className="w-3.5 h-3.5 text-brand shrink-0" />
+                                    )}
+                                    {(isMe || isAdmin) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteMessage(msg._id)}
+                                        className="ml-2 text-rose-500 hover:text-rose-400 hover:scale-110 transition-all cursor-pointer flex items-center justify-center p-0.5 rounded border border-transparent hover:border-rose-500/20 bg-transparent"
+                                        title="DELETE_MESSAGE"
+                                      >
+                                        <Trash className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </motion.div>
                             </React.Fragment>
@@ -787,8 +825,12 @@ export default function ChatHubPage() {
                                   idx === tagIndex ? 'bg-[#ef4444]/20 text-[#ef4444] font-bold' : 'text-slate-350 hover:bg-white/5'
                                 }`}
                               >
-                                <span className="w-5 h-5 rounded border border-white/10 flex items-center justify-center bg-zinc-900 text-[8px] font-bold text-cyan-400 shrink-0">
-                                  {getInitials(m.fullName)}
+                                <span className="w-5 h-5 rounded border border-white/10 overflow-hidden flex items-center justify-center bg-zinc-900 text-[8px] font-bold text-cyan-400 shrink-0">
+                                  {m.profilePhoto ? (
+                                    <img src={m.profilePhoto} alt={m.fullName} className="w-full h-full object-cover" />
+                                  ) : (
+                                    getInitials(m.fullName)
+                                  )}
                                 </span>
                                 <span className="truncate flex-1">{m.fullName.toUpperCase()}</span>
                               </button>
@@ -865,8 +907,12 @@ export default function ChatHubPage() {
                         <div className="flex-grow overflow-y-auto p-3 space-y-2.5 custom-scrollbar bg-zinc-950/10">
                           {selectedTeam.members?.map((m: any) => (
                             <div key={m._id} className="flex items-center gap-3 p-2 rounded border bg-zinc-950/20" style={{ borderColor: 'var(--border)' }}>
-                              <div className="w-7 h-7 rounded border flex items-center justify-center font-bold text-[9px] bg-zinc-900 border-white/10 text-cyan-400">
-                                {getInitials(m.fullName)}
+                              <div className="w-7 h-7 rounded border overflow-hidden flex items-center justify-center font-bold text-[9px] bg-zinc-900 border-white/10 text-cyan-400 shrink-0">
+                                {m.profilePhoto ? (
+                                  <img src={m.profilePhoto} alt={m.fullName} className="w-full h-full object-cover" />
+                                ) : (
+                                  getInitials(m.fullName)
+                                )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="font-bold text-[10px] text-white truncate uppercase">{m.fullName}</div>

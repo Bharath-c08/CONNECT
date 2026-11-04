@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   User as UserIcon,
   Save,
@@ -16,10 +17,18 @@ import {
   CheckCircle,
   Shield,
   Droplet,
-  Calendar
+  Calendar,
+  Camera,
+  Upload,
+  ShieldCheck,
+  Check,
+  Sparkles,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import PhotoCropUpload from '../../../components/PhotoCropUpload';
 
 const springTransition = { type: 'spring', stiffness: 200, damping: 22 } as const;
 
@@ -29,6 +38,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPhotoEditor, setShowPhotoEditor] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -61,14 +72,26 @@ export default function ProfilePage() {
       router.push('/');
       return;
     }
-    setUserId(usr._id || usr.id);
-    fetchProfile(usr._id || usr.id);
+    const currentId = usr._id || usr.id;
+    setUserId(currentId);
+    fetchProfile(currentId);
+
+    const handleUserUpdated = (e: any) => {
+      if (e.detail) {
+        setUserProfile((prev: any) => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('connect:user-updated', handleUserUpdated);
+    return () => {
+      window.removeEventListener('connect:user-updated', handleUserUpdated);
+    };
   }, [router]);
 
   const fetchProfile = async (id: string) => {
     try {
       setLoading(true);
       const data = await apiRequest(`/users/${id}`);
+      setUserProfile(data);
       
       setFormData({
         fullName: data.fullName || '',
@@ -100,6 +123,30 @@ export default function ProfilePage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handlePhotoSaved = (newPhotoUrl: string) => {
+    setUserProfile((prev: any) => ({
+      ...prev,
+      profilePhoto: newPhotoUrl
+    }));
+
+    if (typeof window !== 'undefined') {
+      try {
+        const localUserStr = localStorage.getItem('user');
+        if (localUserStr) {
+          const localUser = JSON.parse(localUserStr);
+          localUser.profilePhoto = newPhotoUrl;
+          localStorage.setItem('user', JSON.stringify(localUser));
+          window.dispatchEvent(new CustomEvent('connect:user-updated', { detail: localUser }));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    setSuccess('PROFILE PICTURE UPDATED & SYNCHRONIZED WITH IDENTITY LEDGER.');
+    setShowPhotoEditor(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -112,18 +159,21 @@ export default function ProfilePage() {
         delete payload.password; // Don't send empty password
       }
       
-      await apiRequest(`/users/${userId}`, {
+      const updated = await apiRequest(`/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
 
+      setUserProfile((prev: any) => ({ ...prev, ...updated }));
       setSuccess('PROFILE UPDATED SUCCESSFULLY.');
+
       // Update local storage name if it changed
       const localUserStr = localStorage.getItem('user');
       if (localUserStr) {
         const localUser = JSON.parse(localUserStr);
         localUser.fullName = payload.fullName;
         localStorage.setItem('user', JSON.stringify(localUser));
+        window.dispatchEvent(new CustomEvent('connect:user-updated', { detail: localUser }));
       }
     } catch (err: any) {
       setError(err.message || 'FAILED TO UPDATE PROFILE.');
@@ -140,6 +190,16 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'OP';
+    return name
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+  };
 
   return (
     <div className="space-y-6 font-mono max-w-5xl mx-auto">
@@ -178,9 +238,164 @@ export default function ProfilePage() {
             // OPERATOR_PROFILE
           </h1>
           <p className="mt-1 text-[10px] text-slate-500 tracking-wider uppercase">
-            MANAGE PERSONAL IDENTIFICATION, EMERGENCY, AND SECURE DATA
+            MANAGE PERSONAL IDENTIFICATION, OFFICIAL PHOTO, AND SECURE DATA
           </p>
         </div>
+      </motion.div>
+
+      {/* ── OPERATOR IDENTITY & PROFILE PICTURE HERO CARD ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springTransition}
+        className="p-6 rounded-2xl border bg-zinc-950/70 relative overflow-hidden backdrop-blur-xl shadow-xl"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+        
+        <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+            {/* Avatar container */}
+            <div className="relative group shrink-0">
+              <div
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 bg-zinc-900 flex items-center justify-center shadow-[0_0_25px_rgba(6,182,212,0.15)] relative"
+                style={{
+                  borderColor: userProfile?.profilePhoto ? 'var(--brand)' : 'var(--border)'
+                }}
+              >
+                {userProfile?.profilePhoto ? (
+                  <img
+                    src={userProfile.profilePhoto}
+                    alt={userProfile.fullName || 'Operator'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-500 gap-1.5 p-2 text-center">
+                    <Camera className="w-8 h-8 opacity-60 text-cyan-400" />
+                    <span className="text-[10px] font-extrabold text-cyan-400">
+                      {getInitials(userProfile?.fullName)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Hover trigger overlay */}
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoEditor(!showPhotoEditor)}
+                  className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-cyan-400 cursor-pointer"
+                  title="Update profile picture"
+                >
+                  <Camera className="w-6 h-6 animate-pulse" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider">CHANGE PHOTO</span>
+                </button>
+              </div>
+
+              {/* Verified badge or indicator */}
+              <div
+                className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border flex items-center gap-1 shadow-lg bg-zinc-950"
+                style={{
+                  borderColor: userProfile?.profilePhoto ? 'rgb(16, 185, 129)' : 'var(--border)',
+                  color: userProfile?.profilePhoto ? 'rgb(52, 211, 153)' : 'rgb(148, 163, 184)'
+                }}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${userProfile?.profilePhoto ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                <span>{userProfile?.profilePhoto ? 'PHOTO_ACTIVE' : 'NO_PHOTO'}</span>
+              </div>
+            </div>
+
+            {/* Profile Meta info */}
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  {userProfile?.role || 'OPERATOR'}
+                </span>
+                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-zinc-900 text-slate-300 border border-white/10">
+                  ID: {userProfile?.employeeId || 'CONNECT_ID'}
+                </span>
+                {userProfile?.employmentType && (
+                  <span className="text-[9px] uppercase text-slate-400 font-bold">
+                    &bull; {userProfile.employmentType}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-wider uppercase">
+                {userProfile?.fullName || 'OPERATOR'}
+              </h2>
+
+              <p className="text-xs text-slate-400">
+                {userProfile?.jobTitle || 'UNASSIGNED ROLE'} &bull; <span className="text-slate-300">{userProfile?.email}</span>
+              </p>
+
+              <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-3 text-[10px] text-slate-500">
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>SYNCHRONIZED WITH IDENTITY & COMPLIANCE HUB</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick action buttons */}
+          <div className="flex flex-col sm:flex-row md:flex-col gap-2 shrink-0 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowPhotoEditor(!showPhotoEditor)}
+              className="btn btn-primary h-9 px-4 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>{showPhotoEditor ? 'CLOSE EDITOR' : 'CHANGE PROFILE PHOTO'}</span>
+            </button>
+
+            <Link
+              href="/dashboard/onboarding"
+              className="btn btn-secondary h-9 px-4 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2"
+              title="Open Identity & Compliance Hub to view digital credentials and ID card"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <span>IDENTITY & COMPLIANCE</span>
+              <ExternalLink className="w-3 h-3 text-slate-500" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Collapsible Photo Crop Tool */}
+        <AnimatePresence>
+          {showPhotoEditor && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={springTransition}
+              className="mt-6 pt-6 border-t border-white/10"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    PASSPORT / PROFILE PICTURE CROPPER & UPLOADER
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoEditor(false)}
+                  className="btn-icon h-7 w-7 rounded cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-950 border border-white/10">
+                <PhotoCropUpload
+                  currentPhoto={userProfile?.profilePhoto}
+                  onPhotoSaved={handlePhotoSaved}
+                  aspectRatio="1:1"
+                  userId={userId}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

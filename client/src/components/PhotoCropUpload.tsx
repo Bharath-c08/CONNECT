@@ -159,6 +159,24 @@ export default function PhotoCropUpload({
       setPreviewDataUrl(croppedBase64);
       setIsModalOpen(false);
       setImageSrc(null);
+      // Synchronize to localStorage and broadcast real-time update
+      if (typeof window !== 'undefined') {
+        try {
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const parsed = JSON.parse(userStr);
+            const currentId = parsed._id || parsed.id;
+            if (!userId || userId === currentId) {
+              parsed.profilePhoto = croppedBase64;
+              localStorage.setItem('user', JSON.stringify(parsed));
+              window.dispatchEvent(new CustomEvent('connect:user-updated', { detail: parsed }));
+            }
+          }
+        } catch (e) {
+          console.warn('Could not sync user to localStorage:', e);
+        }
+      }
+
       if (onPhotoSaved) {
         onPhotoSaved(croppedBase64);
       }

@@ -66,8 +66,8 @@ router.get('/', verifyToken, async (req, res) => {
   try {
     await syncJobRoleTeams();
     const teams = await Team.find({})
-      .populate('members', 'fullName email employeeId jobTitle role')
-      .populate('admins', 'fullName email');
+      .populate('members', 'fullName email employeeId jobTitle role profilePhoto')
+      .populate('admins', 'fullName email employeeId jobTitle role profilePhoto');
 
     // Decrypt all teams
     const decryptedTeams = teams.map((t) => {
@@ -93,7 +93,7 @@ router.get('/my', verifyToken, async (req, res) => {
         { members: req.user.userId },
         { admins: req.user.userId }
       ]
-    }).populate('members', 'fullName email employeeId jobTitle role');
+    }).populate('members', 'fullName email employeeId jobTitle role profilePhoto');
 
     // Decrypt all user teams
     const decryptedTeams = teams.map((t) => {

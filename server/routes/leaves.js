@@ -60,14 +60,21 @@ router.post('/', verifyToken, async (req, res) => {
       usedDays += days;
     });
 
-    const limit = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
-      ? (user.leaveLimits.get(leaveType) ?? category.defaultDays)
-      : (user.leaveLimits?.[leaveType] ?? category.defaultDays);
+    const policyDefault = leaveType === 'sick' ? 2 : category.defaultDays;
+    const rawLimit = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
+      ? (user.leaveLimits.get(leaveType) ?? policyDefault)
+      : (user.leaveLimits?.[leaveType] ?? policyDefault);
+
+    const limit = leaveType === 'sick' ? Math.min(Number(rawLimit || 2), 2) : Number(rawLimit || policyDefault);
+
+    if (requestedDays <= 0) {
+      return res.status(400).json({ message: 'Invalid departure duration. Minimum leave duration is 1 day.' });
+    }
 
     if (usedDays + requestedDays > limit) {
       const remaining = Math.max(0, limit - usedDays);
       return res.status(400).json({
-        message: `INSUFFICIENT LEAVE BALANCE: You requested ${requestedDays} days of ${leaveType.toUpperCase()} leave, but you only have ${remaining} days remaining out of your ${limit}-day limit for this month.`
+        message: `INSUFFICIENT LEAVE BALANCE: You requested ${requestedDays} days of ${category.label.toUpperCase()} (${leaveType.toUpperCase()}), but you only have ${remaining} day(s) remaining out of your ${limit}-day monthly policy limit. Requests exceeding available days cannot be submitted.`
       });
     }
 
@@ -171,6 +178,54 @@ router.put('/:id/status', verifyToken, isAdminOrSuperAdmin, async (req, res) => 
       return res.status(400).json({ message: 'This leave request has already been processed.' });
     }
 
+    if (status === 'approved') {
+      const applicant = await User.findById(request.userId);
+      if (!applicant) {
+        return res.status(404).json({ message: 'Applicant operator not found.' });
+      }
+
+      const category = await LeaveCategory.findOne({ name: request.leaveType });
+      const policyDefault = request.leaveType === 'sick' ? 2 : (category ? category.defaultDays : 10);
+
+      const rawLimit = (applicant.leaveLimits && typeof applicant.leaveLimits.get === 'function')
+        ? (applicant.leaveLimits.get(request.leaveType) ?? policyDefault)
+        : (applicant.leaveLimits?.[request.leaveType] ?? policyDefault);
+
+      const effectiveLimit = request.leaveType === 'sick' ? Math.min(Number(rawLimit || 2), 2) : Number(rawLimit || policyDefault);
+
+      const reqStart = new Date(request.startDate);
+      const reqEnd = new Date(request.endDate);
+      const requestedDays = Math.ceil((reqEnd - reqStart) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Scoped to target calendar month
+      const year = reqStart.getFullYear();
+      const month = reqStart.getMonth();
+      const startOfMonth = new Date(year, month, 1);
+      const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+      // Check already approved leaves in this month
+      const alreadyApproved = await LeaveRequest.find({
+        _id: { $ne: request._id },
+        userId: request.userId,
+        leaveType: request.leaveType,
+        status: 'approved',
+        startDate: { $gte: startOfMonth, $lte: endOfMonth }
+      });
+
+      let usedDays = 0;
+      alreadyApproved.forEach(r => {
+        const days = Math.ceil((new Date(r.endDate) - new Date(r.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+        usedDays += days;
+      });
+
+      if (usedDays + requestedDays > effectiveLimit) {
+        const remaining = Math.max(0, effectiveLimit - usedDays);
+        return res.status(400).json({
+          message: `POLICY VIOLATION - CANNOT APPROVE: Operator only has ${remaining} day(s) remaining for ${request.leaveType.toUpperCase()} leave (${effectiveLimit} days/month maximum allowed by policy). This request is for ${requestedDays} day(s). Only requests within the policy balance can be approved.`
+        });
+      }
+    }
+
     request.status = status;
     request.approvedBy = req.user.userId;
     await request.save();
@@ -243,9 +298,10 @@ router.get('/my-limits', verifyToken, async (req, res) => {
 
     const limits = {};
     categories.forEach(c => {
-      limits[c.name] = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
+      const raw = (user.leaveLimits && typeof user.leaveLimits.get === 'function')
         ? (user.leaveLimits.get(c.name) ?? c.defaultDays)
         : (user.leaveLimits?.[c.name] ?? c.defaultDays);
+      limits[c.name] = c.name === 'sick' ? Math.min(Number(raw || 2), 2) : Number(raw || c.defaultDays);
     });
 
     res.json({
@@ -271,7 +327,8 @@ router.put('/limits/:userId', verifyToken, isAdminOrSuperAdmin, async (req, res)
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
     for (const [key, val] of Object.entries(limits)) {
-      user.leaveLimits.set(key, Number(val));
+      const numVal = Number(val);
+      user.leaveLimits.set(key, key === 'sick' ? Math.min(2, Math.max(0, numVal)) : numVal);
     }
 
     if (disabledLeaves !== undefined && Array.isArray(disabledLeaves)) {
@@ -403,7 +460,9 @@ router.put('/categories/:id', verifyToken, isAdminOrSuperAdmin, async (req, res)
     }
 
     if (label !== undefined) category.label = label;
-    if (defaultDays !== undefined) category.defaultDays = Number(defaultDays);
+    if (defaultDays !== undefined) {
+      category.defaultDays = category.name === 'sick' ? Math.min(2, Math.max(0, Number(defaultDays))) : Number(defaultDays);
+    }
     if (isActive !== undefined) category.isActive = isActive;
 
     await category.save();

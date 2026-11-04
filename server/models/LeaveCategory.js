@@ -4,7 +4,7 @@ const LeaveCategorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true, lowercase: true, trim: true },
     label: { type: String, required: true },
-    defaultDays: { type: Number, required: true, default: 10 },
+    defaultDays: { type: Number, required: true, default: 2 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

@@ -46,7 +46,7 @@ const UserSchema = new mongoose.Schema(
       type: Map,
       of: Number,
       default: () => new Map([
-        ['sick', 10],
+        ['sick', 2],
         ['casual', 10],
         ['annual', 15],
         ['unpaid', 365],

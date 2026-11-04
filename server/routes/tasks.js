@@ -59,7 +59,7 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
 router.get('/my', verifyToken, async (req, res) => {
   try {
     const tasks = await Task.find({ assignedTo: req.user.userId })
-      .populate('assignedBy', 'fullName jobTitle role')
+      .populate('assignedBy', 'fullName jobTitle role profilePhoto')
       .sort({ startDate: 1, createdAt: -1 });
     res.json(tasks);
   } catch (error) {
@@ -72,8 +72,8 @@ router.get('/my', verifyToken, async (req, res) => {
 router.get('/company', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   try {
     const tasks = await Task.find({ assignedBy: req.user.userId })
-      .populate('assignedTo', 'fullName employeeId jobTitle role')
-      .populate('assignedBy', 'fullName jobTitle role')
+      .populate('assignedTo', 'fullName employeeId jobTitle role profilePhoto')
+      .populate('assignedBy', 'fullName jobTitle role profilePhoto')
       .sort({ createdAt: -1 });
     res.json(tasks);
   } catch (error) {

@@ -39,7 +39,7 @@ router.get('/', verifyToken, async (req, res) => {
             { _id: assignedAdminId },
             { assignedAdmin: assignedAdminId }
           ]
-        }).select('fullName role jobTitle _id employeeId email assignedAdmin');
+        }).select('fullName role jobTitle _id employeeId email assignedAdmin profilePhoto');
       } else {
         // If a user has no assigned admin, they see themselves and super admins
         users = await User.find({
@@ -47,7 +47,7 @@ router.get('/', verifyToken, async (req, res) => {
             { role: 'superadmin' },
             { _id: req.user.userId }
           ]
-        }).select('fullName role jobTitle _id employeeId email');
+        }).select('fullName role jobTitle _id employeeId email profilePhoto');
       }
     }
     
@@ -130,8 +130,11 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
     const categories = await LeaveCategory.find({});
     const leaveLimits = new Map();
     categories.forEach(c => {
-      leaveLimits.set(c.name, c.defaultDays);
+      leaveLimits.set(c.name, c.name === 'sick' ? 2 : c.defaultDays);
     });
+    if (!leaveLimits.has('sick')) {
+      leaveLimits.set('sick', 2);
+    }
 
     const newUser = new User({
       username,
@@ -335,10 +338,14 @@ router.post('/import', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   try {
     const categories = await LeaveCategory.find({});
     categories.forEach(c => {
-      leaveLimits.set(c.name, c.defaultDays);
+      leaveLimits.set(c.name, c.name === 'sick' ? 2 : c.defaultDays);
     });
+    if (!leaveLimits.has('sick')) {
+      leaveLimits.set('sick', 2);
+    }
   } catch (catErr) {
     console.error('Error fetching leave categories for batch import:', catErr);
+    leaveLimits.set('sick', 2);
   }
 
   const results = {

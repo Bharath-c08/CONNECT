@@ -306,19 +306,32 @@ export default function KudosPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-xl bg-gradient-to-br ${meta.color} flex items-center justify-center text-white shadow-md`}
-                        >
-                          <BadgeIcon className="w-5 h-5" />
+                        <div className="relative shrink-0">
+                          <div className="w-11 h-11 rounded-xl border border-white/10 bg-zinc-900 overflow-hidden flex items-center justify-center shadow-md">
+                            {kudos.receiverId?.profilePhoto ? (
+                              <img src={kudos.receiverId.profilePhoto} alt={kudos.receiverId.fullName} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className={`w-full h-full bg-gradient-to-br ${meta.color} flex items-center justify-center text-white`}>
+                                <BadgeIcon className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br ${meta.color} flex items-center justify-center text-white shadow-md border border-zinc-950 text-[10px]`}>
+                            <BadgeIcon className="w-3 h-3" />
+                          </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                             {kudos.badge}
                           </span>
-                          <p className="text-xs text-slate-300 font-bold mt-1">
-                            <span className="text-cyan-400">{kudos.senderId?.fullName || 'Anonymous'}</span> awarded{' '}
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-300 font-bold mt-1">
+                            {kudos.senderId?.profilePhoto && (
+                              <img src={kudos.senderId.profilePhoto} alt={kudos.senderId.fullName} className="w-4 h-4 rounded-full object-cover border border-cyan-400/40 inline-block shrink-0" />
+                            )}
+                            <span className="text-cyan-400">{kudos.senderId?.fullName || 'Anonymous'}</span>
+                            <span className="text-slate-400 font-normal">awarded</span>
                             <span className="text-emerald-400">{kudos.receiverId?.fullName}</span>
-                          </p>
+                          </div>
                         </div>
                       </div>
 
@@ -372,9 +385,19 @@ export default function KudosPage() {
                   key={item._id}
                   className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all ${rankColor}`}
                 >
-                  <div className="flex items-center gap-4 min-w-0">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 bg-slate-900 border border-slate-700">
                       #{idx + 1}
+                    </div>
+
+                    <div className="w-9 h-9 rounded-lg border border-white/10 bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
+                      {item.user?.profilePhoto ? (
+                        <img src={item.user.profilePhoto} alt={item.user.fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-black text-amber-400">
+                          {item.user?.fullName ? item.user.fullName[0].toUpperCase() : 'U'}
+                        </span>
+                      )}
                     </div>
 
                     <div className="min-w-0">

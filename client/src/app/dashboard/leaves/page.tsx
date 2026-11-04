@@ -456,7 +456,13 @@ export default function LeavesPlannerPage() {
 
   const getLimitValue = (emp: any, type: string) => {
     const matched = globalCategories.find(c => c.name === type);
-    const defaultDays = matched ? matched.defaultDays : 10;
+    const defaultDays = matched ? matched.defaultDays : (type === 'sick' ? 2 : 10);
+
+    if (type === 'sick') {
+      if (!emp?.leaveLimits) return 2;
+      const val = typeof emp.leaveLimits.get === 'function' ? emp.leaveLimits.get(type) : emp.leaveLimits[type];
+      return (val !== undefined && val !== null) ? Math.min(Number(val), 2) : 2;
+    }
 
     if (!emp?.leaveLimits) return defaultDays;
     if (typeof emp.leaveLimits.get === 'function') {
@@ -656,41 +662,70 @@ export default function LeavesPlannerPage() {
                       {getLeaveTypeTag(req.leaveType)}
                     </div>
 
-                    <div className="space-y-2.5 text-[11px] text-slate-400 pt-3 border-t font-mono" style={{ borderColor: 'var(--border)' }}>
-                      <div className="flex justify-between select-none">
-                        <span className="text-slate-500">OFFLINE_SPAN:</span>
-                        <span className="font-bold text-white">
-                          {new Date(req.startDate).toLocaleDateString([], { month: 'short', day: 'numeric' })} to{' '}
-                          {new Date(req.endDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </div>
-                      {req.reason && (
-                        <div className="mt-2.5 p-2.5 bg-zinc-950/40 border rounded text-slate-400 leading-relaxed italic text-[10px]" style={{ borderColor: 'var(--border)' }}>
-                          &ldquo;{req.reason.toUpperCase()}&rdquo;
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    {(() => {
+                      const reqDays = Math.ceil((new Date(req.endDate).getTime() - new Date(req.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      const matchedCat = globalCategories.find(c => c.name === req.leaveType);
+                      const policyLimit = req.leaveType === 'sick' ? 2 : (matchedCat ? matchedCat.defaultDays : 10);
+                      const exceedsPolicy = reqDays > policyLimit;
 
-                  {/* Actions */}
-                  <div className="mt-5 pt-3 border-t flex items-center justify-end gap-2 select-none" style={{ borderColor: 'var(--border)' }}>
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleProcessRequest(req._id, 'rejected')}
-                      className="px-3.5 py-1.5 rounded border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/25 text-slate-400 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-white/5"
-                      style={{ borderColor: 'var(--border)' }}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>DENY</span>
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleProcessRequest(req._id, 'approved')}
-                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-extrabold rounded transition-all cursor-pointer flex items-center gap-1 text-[10px] uppercase tracking-wider"
-                    >
-                      <Check className="w-3.5 h-3.5 font-extrabold" />
-                      <span>APPROVE</span>
-                    </motion.button>
+                      return (
+                        <>
+                          <div className="space-y-2.5 text-[11px] text-slate-400 pt-3 border-t font-mono" style={{ borderColor: 'var(--border)' }}>
+                            <div className="flex justify-between select-none">
+                              <span className="text-slate-500">OFFLINE_SPAN:</span>
+                              <span className="font-bold text-white">
+                                {new Date(req.startDate).toLocaleDateString([], { month: 'short', day: 'numeric' })} to{' '}
+                                {new Date(req.endDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between select-none text-[10px]">
+                              <span className="text-slate-500">DURATION REQUESTED:</span>
+                              <span className={`font-extrabold ${exceedsPolicy ? 'text-rose-400' : 'text-white'}`}>
+                                {reqDays} DAY(S) <span className="text-slate-500 font-normal">/ {policyLimit}d max allowance</span>
+                              </span>
+                            </div>
+                            {exceedsPolicy && (
+                              <div className="p-2 rounded bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[10px] flex items-center gap-2">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                <span>POLICY BREACH: Requested {reqDays} days exceeds {policyLimit}-day monthly allowance. Approval blocked.</span>
+                              </div>
+                            )}
+                            {req.reason && (
+                              <div className="mt-2.5 p-2.5 bg-zinc-950/40 border rounded text-slate-400 leading-relaxed italic text-[10px]" style={{ borderColor: 'var(--border)' }}>
+                                &ldquo;{req.reason.toUpperCase()}&rdquo;
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="mt-5 pt-3 border-t flex items-center justify-end gap-2 select-none" style={{ borderColor: 'var(--border)' }}>
+                            <motion.button
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => handleProcessRequest(req._id, 'rejected')}
+                              className="px-3.5 py-1.5 rounded border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/25 text-slate-400 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-white/5"
+                              style={{ borderColor: 'var(--border)' }}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>DENY</span>
+                            </motion.button>
+                            <motion.button
+                              whileTap={{ scale: exceedsPolicy ? 1 : 0.97 }}
+                              onClick={() => !exceedsPolicy && handleProcessRequest(req._id, 'approved')}
+                              disabled={exceedsPolicy}
+                              title={exceedsPolicy ? `Cannot approve: Requested ${reqDays} days exceeds ${policyLimit} days allowed by policy.` : undefined}
+                              className={`px-3.5 py-1.5 font-extrabold rounded transition-all flex items-center gap-1 text-[10px] uppercase tracking-wider ${
+                                exceedsPolicy
+                                  ? 'bg-zinc-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-50'
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-zinc-950 cursor-pointer'
+                              }`}
+                            >
+                              <Check className="w-3.5 h-3.5 font-extrabold" />
+                              <span>APPROVE</span>
+                            </motion.button>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               ))}
@@ -745,7 +780,7 @@ export default function LeavesPlannerPage() {
                               {isDisabled ? (
                                 <span className="text-slate-600 uppercase text-[9px] line-through select-none font-normal">DISABLED</span>
                               ) : (
-                                <span className="text-[#ef4444]/80">{limit} DAYS</span>
+                                <span className="text-[#ef4444]/80 font-mono">{limit} {c.name === 'sick' ? 'DAYS/MO' : 'DAYS'}</span>
                               )}
                             </td>
                           );
@@ -960,7 +995,7 @@ export default function LeavesPlannerPage() {
 
               <form onSubmit={handleRequestSubmit} className="modal-body space-y-4">
                 <div className="form-group">
-                  <label className="form-label mb-1">Leave Category Category *</label>
+                  <label className="form-label mb-1">Leave Category *</label>
                   <select
                     name="leaveType"
                     value={formData.leaveType}
@@ -971,71 +1006,147 @@ export default function LeavesPlannerPage() {
                       .filter((c: any) => !(myAllowances.disabled || []).includes(c.name))
                       .map((c: any) => (
                         <option key={c.name} value={c.name}>
-                          {c.label.toUpperCase()}
+                          {c.label.toUpperCase()} {c.name === 'sick' ? '(2 DAYS/MO POLICY)' : ''}
                         </option>
                       ))}
                   </select>
+                  {(() => {
+                    const selCat = (myAllowances.categories || []).find((c: any) => c.name === formData.leaveType);
+                    const catLimit = formData.leaveType === 'sick' ? 2 : (myAllowances.limits?.[formData.leaveType] ?? selCat?.defaultDays ?? 10);
+                    const catUsage = myAllowances.usage?.[formData.leaveType] || 0;
+                    const remDays = Math.max(0, catLimit - catUsage);
+                    return (
+                      <div className="flex justify-between items-center text-[10px] mt-1.5 font-mono select-none">
+                        <span className="text-slate-500">MONTHLY POLICY BALANCE:</span>
+                        <span className={remDays <= 0 ? "text-rose-400 font-extrabold" : "text-emerald-400 font-extrabold"}>
+                          {remDays} / {catLimit} DAY(S) REMAINING
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="form-group">
-                    <label className="form-label mb-1">Disconnect Date *</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                      <input
-                        type="date"
-                        required
-                        name="startDate"
-                        value={formData.startDate}
-                        onChange={handleInputChange}
-                        className="input pl-9"
-                      />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label mb-1">Return Date *</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                      <input
-                        type="date"
-                        required
-                        name="endDate"
-                        value={formData.endDate}
-                        onChange={handleInputChange}
-                        className="input pl-9"
-                      />
-                    </div>
-                  </div>
-                </div>
+                {(() => {
+                  const selCat = (myAllowances.categories || []).find((c: any) => c.name === formData.leaveType);
+                  const catLimit = formData.leaveType === 'sick' ? 2 : (myAllowances.limits?.[formData.leaveType] ?? selCat?.defaultDays ?? 10);
+                  const catUsage = myAllowances.usage?.[formData.leaveType] || 0;
+                  const remDays = Math.max(0, catLimit - catUsage);
 
+                  let reqDays = 0;
+                  let isValidRange = false;
+                  if (formData.startDate && formData.endDate) {
+                    const s = new Date(formData.startDate);
+                    const e = new Date(formData.endDate);
+                    if (e >= s) {
+                      reqDays = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      isValidRange = true;
+                    }
+                  }
 
-                <div className="form-group">
-                  <label className="form-label mb-1">Override Rationale / Reason</label>
-                  <textarea
-                    name="reason"
-                    placeholder="Provide details regarding the shutdown rationale..."
-                    value={formData.reason}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="textarea"
-                  />
-                </div>
+                  const maxEndDate = (() => {
+                    if (!formData.startDate || remDays <= 0) return undefined;
+                    const s = new Date(formData.startDate);
+                    s.setDate(s.getDate() + remDays - 1);
+                    return s.toISOString().split('T')[0];
+                  })();
 
-                <div className="modal-footer pt-4 border-t flex items-center justify-end gap-3 select-none" style={{ borderColor: 'var(--border)' }}>
-                  <button
-                    type="button"
-                    onClick={() => setRequestModalOpen(false)}
-                    className="btn btn-secondary h-9 text-[10px] cursor-pointer"
-                  >
-                    ABORT
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary h-9 text-[10px] font-extrabold cursor-pointer"
-                  >
-                    COMMIT_DEPARTURE
-                  </button>
-                </div>
+                  const exceedsPolicy = reqDays > remDays;
+                  const isBlocked = !isValidRange || reqDays <= 0 || exceedsPolicy || remDays <= 0;
+
+                  return (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="form-group">
+                          <label className="form-label mb-1">Disconnect Date *</label>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                            <input
+                              type="date"
+                              required
+                              name="startDate"
+                              value={formData.startDate}
+                              onChange={handleInputChange}
+                              className="input pl-9"
+                            />
+                          </div>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label mb-1">Return Date *</label>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                            <input
+                              type="date"
+                              required
+                              name="endDate"
+                              min={formData.startDate || undefined}
+                              max={maxEndDate}
+                              value={formData.endDate}
+                              onChange={handleInputChange}
+                              className="input pl-9"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Real-time duration indicator */}
+                      {isValidRange && (
+                        <div className="p-2.5 rounded bg-zinc-950/60 border border-white/5 flex items-center justify-between text-[11px] font-mono select-none">
+                          <span className="text-slate-400">REQUESTED DURATION:</span>
+                          <span className={`font-extrabold ${exceedsPolicy ? 'text-rose-400' : 'text-cyan-400'}`}>
+                            {reqDays} DAY(S)
+                          </span>
+                        </div>
+                      )}
+
+                      {exceedsPolicy && (
+                        <div className="p-3 bg-rose-500/10 border border-rose-500/25 text-rose-400 rounded text-xs flex items-center gap-2 select-none">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>EXCEEDS POLICY: You requested {reqDays} day(s), but only {remDays} day(s) remain in your monthly policy balance. Only requests within policy can be submitted.</span>
+                        </div>
+                      )}
+
+                      {remDays <= 0 && (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded text-xs flex items-center gap-2 select-none">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>ZERO BALANCE REMAINING: You have already used all {catLimit} days allocated for this month.</span>
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                        <label className="form-label mb-1">Override Rationale / Reason</label>
+                        <textarea
+                          name="reason"
+                          placeholder="Provide details regarding the shutdown rationale..."
+                          value={formData.reason}
+                          onChange={handleInputChange}
+                          rows={3}
+                          className="textarea"
+                        />
+                      </div>
+
+                      <div className="modal-footer pt-4 border-t flex items-center justify-end gap-3 select-none" style={{ borderColor: 'var(--border)' }}>
+                        <button
+                          type="button"
+                          onClick={() => setRequestModalOpen(false)}
+                          className="btn btn-secondary h-9 text-[10px] cursor-pointer"
+                        >
+                          ABORT
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isBlocked}
+                          className={`btn h-9 text-[10px] font-extrabold ${
+                            isBlocked
+                              ? 'bg-zinc-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-50'
+                              : 'btn-primary cursor-pointer'
+                          }`}
+                        >
+                          COMMIT_DEPARTURE
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
               </form>
             </motion.div>
           </div>
@@ -1113,12 +1224,16 @@ export default function LeavesPlannerPage() {
                               type="number"
                               required
                               min={0}
+                              max={type === 'sick' ? 2 : undefined}
                               disabled={!isEnabled}
                               name={type}
-                              value={customLimits[type] ?? c.defaultDays}
-                              onChange={(e) => handleLimitInputChange(type, Number(e.target.value))}
+                              value={customLimits[type] ?? (type === 'sick' ? 2 : c.defaultDays)}
+                              onChange={(e) => handleLimitInputChange(type, type === 'sick' ? Math.min(2, Math.max(0, Number(e.target.value))) : Number(e.target.value))}
                               className="input h-9 text-[11px] max-w-[120px] disabled:opacity-40 disabled:cursor-not-allowed"
                             />
+                            {type === 'sick' && (
+                              <span className="text-[9px] text-[#ef4444] font-bold uppercase">(2 DAYS/MO MAX CAP)</span>
+                            )}
                           </div>
                         </div>
                       );

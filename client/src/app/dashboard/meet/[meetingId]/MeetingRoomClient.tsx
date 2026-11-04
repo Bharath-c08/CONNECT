@@ -671,8 +671,12 @@ export default function MeetingRoomClient() {
           />
           {(isVideoOff || !localStream) && !isScreenSharing && (
             <div className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center gap-2">
-              <div className="w-16 h-16 rounded-full border border-rose-500/20 bg-rose-500/5 flex items-center justify-center text-rose-400">
-                <VideoOff className="w-7 h-7" />
+              <div className="w-16 h-16 rounded-full border border-rose-500/20 bg-rose-500/5 flex items-center justify-center text-rose-400 overflow-hidden">
+                {currentUser?.profilePhoto ? (
+                  <img src={currentUser.profilePhoto} alt={currentUser.fullName} className="w-full h-full object-cover" />
+                ) : (
+                  <VideoOff className="w-7 h-7" />
+                )}
               </div>
               <span className="font-bold text-slate-500 text-[10px]">CAMERA STREAM SUSPENDED</span>
             </div>

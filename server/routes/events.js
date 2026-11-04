@@ -91,7 +91,7 @@ router.get('/', verifyToken, async (req, res) => {
         { creator: req.user.userId }
       ]
     })
-    .populate('creator', 'fullName employeeId jobTitle')
+    .populate('creator', 'fullName employeeId jobTitle profilePhoto')
     .populate('targetTeams', 'name')
     .sort({ date: 1 });
 
@@ -115,8 +115,8 @@ router.get('/', verifyToken, async (req, res) => {
     const teamsWithMembers = await Team.find({
       _id: { $in: userTeamIds }
     })
-    .populate('members', 'fullName email employeeId jobTitle role dob joiningDate')
-    .populate('admins', 'fullName email employeeId jobTitle role dob joiningDate');
+    .populate('members', 'fullName email employeeId jobTitle role dob joiningDate profilePhoto')
+    .populate('admins', 'fullName email employeeId jobTitle role dob joiningDate profilePhoto');
 
     const memberMap = new Map();
     teamsWithMembers.forEach(team => {
@@ -144,6 +144,7 @@ router.get('/', verifyToken, async (req, res) => {
             fullName: member.fullName,
             employeeId: member.employeeId,
             jobTitle: member.jobTitle,
+            profilePhoto: member.profilePhoto || '',
             type: 'birthday',
             isToday: true,
             date: member.dob
@@ -154,6 +155,7 @@ router.get('/', verifyToken, async (req, res) => {
             fullName: member.fullName,
             employeeId: member.employeeId,
             jobTitle: member.jobTitle,
+            profilePhoto: member.profilePhoto || '',
             type: 'birthday',
             isToday: false,
             date: member.dob
@@ -173,6 +175,7 @@ router.get('/', verifyToken, async (req, res) => {
             fullName: member.fullName,
             employeeId: member.employeeId,
             jobTitle: member.jobTitle,
+            profilePhoto: member.profilePhoto || '',
             type: 'anniversary',
             isToday: true,
             years,
@@ -184,6 +187,7 @@ router.get('/', verifyToken, async (req, res) => {
             fullName: member.fullName,
             employeeId: member.employeeId,
             jobTitle: member.jobTitle,
+            profilePhoto: member.profilePhoto || '',
             type: 'anniversary',
             isToday: false,
             years,

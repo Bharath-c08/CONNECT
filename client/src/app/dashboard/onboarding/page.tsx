@@ -325,7 +325,20 @@ export default function OnboardingPage() {
       ...prev,
       profilePhoto: newPhoto
     }));
-    setSuccess('Passport photo updated on official credential.');
+    if (typeof window !== 'undefined') {
+      try {
+        const uStr = localStorage.getItem('user');
+        if (uStr) {
+          const u = JSON.parse(uStr);
+          u.profilePhoto = newPhoto;
+          localStorage.setItem('user', JSON.stringify(u));
+          window.dispatchEvent(new CustomEvent('connect:user-updated', { detail: u }));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    setSuccess('Passport photo updated on official credential and profile picture.');
   };
 
   return (

@@ -16,24 +16,40 @@ function processHrQuery(query, user, tasks, leaves, recentSessions) {
   // 1. Leave & Time-Off Queries
   if (q.includes('leave') || q.includes('vacation') || q.includes('time off') || q.includes('sick') || q.includes('casual')) {
     const limits = user.leaveLimits ? Object.fromEntries(user.leaveLimits) : {};
-    const sickDays = limits.sick || 10;
+    const sickDays = 2; // Strict 2 days per month policy
     const casualDays = limits.casual || 10;
     const annualDays = limits.annual || 15;
 
-    const pendingLeaves = leaves.filter((l) => l.status === 'pending').length;
-    const approvedLeaves = leaves.filter((l) => l.status === 'approved').length;
+    const approvedLeavesList = leaves.filter((l) => l.status === 'approved');
+    const pendingLeavesList = leaves.filter((l) => l.status === 'pending');
+
+    let approvedSickDays = 0;
+    let approvedCasualDays = 0;
+    let approvedAnnualDays = 0;
+
+    approvedLeavesList.forEach(l => {
+      const days = Math.ceil((new Date(l.endDate) - new Date(l.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+      if (l.leaveType === 'sick') approvedSickDays += days;
+      else if (l.leaveType === 'casual') approvedCasualDays += days;
+      else if (l.leaveType === 'annual') approvedAnnualDays += days;
+    });
+
+    const totalApprovedDays = approvedSickDays + approvedCasualDays + approvedAnnualDays;
 
     return `📋 Your Leave Summary & HR Policy:
 
-- Sick Leave Protocol: ${sickDays} days/year allocated.
+- Sick Leave Protocol: ${sickDays} days/month allocated (strictly capped at 2 days per month).
 - Casual Disconnect: ${casualDays} days/year allocated.
 - Annual Vacation: ${annualDays} days/year allocated.
 
-Your Current Status:
-- Approved Leaves Logged: ${approvedLeaves}
-- Pending Requests: ${pendingLeaves}
+Your Current Utilization (Duration-Based):
+- Sick Leave: ${approvedSickDays} / ${sickDays} Days Used this month (Remaining: ${Math.max(0, sickDays - approvedSickDays)} Days)
+- Casual Disconnect: ${approvedCasualDays} / ${casualDays} Days Used
+- Annual Vacation: ${approvedAnnualDays} / ${annualDays} Days Used
+- Total Approved Days Logged: ${totalApprovedDays} Days across ${approvedLeavesList.length} request(s)
+- Pending Requests: ${pendingLeavesList.length}
 
-Policy Note: Leave requests must be submitted at least 24 hours in advance for casual departures, or as early as possible for medical emergencies.`;
+Policy Note: Sick leave is allocated strictly at 2 days per calendar month. Requests exceeding remaining days will not be approved.`;
   }
 
   // 2. Shift Hours & Overtime Queries
@@ -118,7 +134,7 @@ router.post('/chat', verifyToken, async (req, res) => {
       jobTitle: 'Team Member',
       role: 'user',
       leaveLimits: new Map([
-        ['sick', 10],
+        ['sick', 2],
         ['casual', 10],
         ['annual', 15],
       ]),
@@ -349,19 +365,20 @@ router.get('/colleague-report/:targetUserId', verifyToken, async (req, res) => {
     const taskVelocity = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 100;
     const highPriorityPending = pendingTasks.filter((t) => t.priority === 'High' || t.priority === 'Critical').length;
 
-    // Leave Analytics
+    // Leave Analytics (Strictly duration-based days, not request counts)
     const approvedLeaves = leaves.filter((l) => l.status === 'approved');
     const pendingLeaves = leaves.filter((l) => l.status === 'pending');
     const rejectedLeaves = leaves.filter((l) => l.status === 'rejected');
 
     const limits = user.leaveLimits ? Object.fromEntries(user.leaveLimits) : {};
-    const sickLimit = limits.sick || 10;
+    const sickLimit = 2; // Strict 2 days per month policy
     const casualLimit = limits.casual || 10;
     const annualLimit = limits.annual || 15;
 
-    const sickUsed = approvedLeaves.filter((l) => l.leaveType === 'sick').length;
-    const casualUsed = approvedLeaves.filter((l) => l.leaveType === 'casual').length;
-    const annualUsed = approvedLeaves.filter((l) => l.leaveType === 'annual').length;
+    const sickUsed = approvedLeaves.filter((l) => l.leaveType === 'sick').reduce((acc, r) => acc + (Math.ceil((new Date(r.endDate) - new Date(r.startDate)) / (1000 * 60 * 60 * 24)) + 1), 0);
+    const casualUsed = approvedLeaves.filter((l) => l.leaveType === 'casual').reduce((acc, r) => acc + (Math.ceil((new Date(r.endDate) - new Date(r.startDate)) / (1000 * 60 * 60 * 24)) + 1), 0);
+    const annualUsed = approvedLeaves.filter((l) => l.leaveType === 'annual').reduce((acc, r) => acc + (Math.ceil((new Date(r.endDate) - new Date(r.startDate)) / (1000 * 60 * 60 * 24)) + 1), 0);
+    const totalApprovedDays = approvedLeaves.reduce((acc, r) => acc + (Math.ceil((new Date(r.endDate) - new Date(r.startDate)) / (1000 * 60 * 60 * 24)) + 1), 0);
 
     // Shift Telemetry
     const totalMinutes = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
@@ -423,7 +440,8 @@ ${performanceScore >= 80 ? '🌟 Outstanding Operator Performance: High task exe
         activeTasksList: pendingTasks,
       },
       leaves: {
-        approvedCount: approvedLeaves.length,
+        approvedCount: totalApprovedDays,
+        approvedRequestsCount: approvedLeaves.length,
         pendingCount: pendingLeaves.length,
         rejectedCount: rejectedLeaves.length,
         sickUsed,

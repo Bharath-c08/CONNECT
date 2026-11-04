@@ -141,6 +141,7 @@ async function onDbConnected() {
   try {
     await seedSuperAdmin();
     await seedDefaultLeaveCategories();
+    await syncLeavePoliciesAndUserLimits();
     runRecalculation().catch(err => console.error('Recalculation on startup failed:', err));
     syncJobRoleTeams().catch(err => console.error('Initial team synchronization failed:', err));
   } catch (err) {
@@ -301,7 +302,7 @@ async function seedDefaultLeaveCategories() {
     if (categoryCount === 0) {
       console.log('No leave categories found. Seeding default categories...');
       const defaultCategories = [
-        { name: 'sick', label: 'Sick Leave Protocol', defaultDays: 10, isActive: true },
+        { name: 'sick', label: 'Sick Leave Protocol', defaultDays: 2, isActive: true },
         { name: 'casual', label: 'Casual Disconnect', defaultDays: 10, isActive: true },
         { name: 'annual', label: 'Annual Departure (Vacation)', defaultDays: 15, isActive: true },
         { name: 'unpaid', label: 'Unpaid Sleep Mode', defaultDays: 365, isActive: true },
@@ -312,6 +313,59 @@ async function seedDefaultLeaveCategories() {
     }
   } catch (error) {
     console.error('Error seeding default leave categories:', error);
+  }
+}
+
+// Sync and migrate leave policies and clamp sick leave balance to 2 days/month
+async function syncLeavePoliciesAndUserLimits() {
+  try {
+    // 1. Ensure sick category is exactly 2 defaultDays in DB
+    await LeaveCategory.findOneAndUpdate(
+      { name: 'sick' },
+      { $set: { defaultDays: 2, label: 'Sick Leave Protocol', isActive: true } },
+      { upsert: true, new: true }
+    );
+    console.log('LeaveCategory [sick] synchronized to 2 days/month default.');
+
+    // 2. Scan all existing users and clamp/set sick leave balance to 2
+    const users = await User.find({});
+    let updatedUsersCount = 0;
+    for (const u of users) {
+      let changed = false;
+      if (!u.leaveLimits) {
+        u.leaveLimits = new Map([
+          ['sick', 2],
+          ['casual', 10],
+          ['annual', 15],
+          ['unpaid', 365],
+          ['other', 10]
+        ]);
+        changed = true;
+      } else {
+        const currentSick = (typeof u.leaveLimits.get === 'function')
+          ? u.leaveLimits.get('sick')
+          : u.leaveLimits['sick'];
+
+        if (currentSick === undefined || currentSick === null || currentSick > 2 || currentSick === 7 || currentSick === 10) {
+          if (typeof u.leaveLimits.set === 'function') {
+            u.leaveLimits.set('sick', 2);
+          } else {
+            u.leaveLimits['sick'] = 2;
+          }
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await u.save();
+        updatedUsersCount++;
+      }
+    }
+    if (updatedUsersCount > 0) {
+      console.log(`Synchronized leave limits for ${updatedUsersCount} users: Sick leave clamped to 2 days/month.`);
+    }
+  } catch (err) {
+    console.error('Error synchronizing leave policies and limits:', err);
   }
 }
 
@@ -364,7 +418,7 @@ io.on('connection', (socket) => {
       // Populate sender profile info to show in UI
       const populatedMessage = await Message.findById(newMessage._id).populate(
         'senderId',
-        'fullName employeeId jobTitle role'
+        'fullName employeeId jobTitle role profilePhoto'
       );
 
       // Determine which room to broadcast
@@ -399,6 +453,7 @@ io.on('connection', (socket) => {
       signal: data.signalData, 
       from: data.from, 
       name: data.name,
+      photo: data.photo || '',
       type: data.type || 'video'
     });
 

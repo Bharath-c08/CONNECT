@@ -22,7 +22,7 @@ router.get('/team/:teamId', verifyToken, async (req, res) => {
     }
 
     const messages = await Message.find({ teamId: req.params.teamId })
-      .populate('senderId', 'fullName employeeId jobTitle role')
+      .populate('senderId', 'fullName employeeId jobTitle role profilePhoto')
       .sort({ createdAt: 1 });
 
     res.json(messages);
@@ -41,7 +41,7 @@ router.get('/direct/:otherUserId', verifyToken, async (req, res) => {
         { senderId: req.params.otherUserId, recipientId: req.user.userId },
       ],
     })
-      .populate('senderId', 'fullName employeeId jobTitle role')
+      .populate('senderId', 'fullName employeeId jobTitle role profilePhoto')
       .sort({ createdAt: 1 });
 
     res.json(messages);
