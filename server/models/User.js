@@ -69,6 +69,11 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    accountStatus: {
+      type: String,
+      enum: ['working', 'idle'],
+      default: 'working',
+    },
   },
   { timestamps: true }
 );

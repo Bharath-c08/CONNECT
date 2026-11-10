@@ -9,6 +9,22 @@ import { getShiftTimeInUTC, getStartOfDayInUTC, getEndOfDayInUTC } from '../util
 
 const router = express.Router();
 
+// Middleware: Block idle accounts from clocking operations
+const blockIdleAccount = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId).select('accountStatus');
+    if (user && user.accountStatus === 'idle') {
+      return res.status(403).json({
+        message: 'Account is in IDLE status. Clock in, clock out, and shift operations are disabled for idle accounts.'
+      });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 // @route   GET /api/clock/status
 // @desc    Get the current user's clocking status and shift limit telemetry rules
 router.get('/status', verifyToken, async (req, res) => {
@@ -63,7 +79,7 @@ router.get('/status', verifyToken, async (req, res) => {
 
 // @route   POST /api/clock/in
 // @desc    Start a clock-in session (Restricted to one active session at a time)
-router.post('/in', verifyToken, async (req, res) => {
+router.post('/in', verifyToken, blockIdleAccount, async (req, res) => {
   const { location, shiftType, timezone } = req.body;
   const clientTimezone = timezone || 'Asia/Kolkata';
   const selectedType = shiftType || 'regular';
@@ -165,7 +181,7 @@ router.post('/in', verifyToken, async (req, res) => {
 
 // @route   POST /api/clock/out
 // @desc    End a clock-in session without pay calculations
-router.post('/out', verifyToken, async (req, res) => {
+router.post('/out', verifyToken, blockIdleAccount, async (req, res) => {
   const { activityStats, performanceTelemetry } = req.body || {};
   try {
     const activeSession = await Session.findOne({
@@ -411,7 +427,7 @@ router.get('/admin/payslip-data', verifyToken, isAdminOrSuperAdmin, async (req, 
 
 // @route   POST /api/clock/break/start
 // @desc    Start a break during active shift
-router.post('/break/start', verifyToken, async (req, res) => {
+router.post('/break/start', verifyToken, blockIdleAccount, async (req, res) => {
   const { breakType, duration, timezone } = req.body;
   if (!breakType || !duration) {
     return res.status(400).json({ message: 'Break type and duration are required.' });
@@ -478,7 +494,7 @@ router.post('/break/start', verifyToken, async (req, res) => {
 
 // @route   POST /api/clock/break/end
 // @desc    End the active break
-router.post('/break/end', verifyToken, async (req, res) => {
+router.post('/break/end', verifyToken, blockIdleAccount, async (req, res) => {
   try {
     const session = await Session.findOne({
       userId: req.user.userId,

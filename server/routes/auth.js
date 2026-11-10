@@ -43,6 +43,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         employeeId: user.employeeId,
         profilePhoto: user.profilePhoto || '',
+        accountStatus: user.accountStatus || 'working',
       },
     });
   } catch (error) {

@@ -40,6 +40,7 @@ import okrRoutes from './routes/okrs.js';
 import reviewRoutes from './routes/reviews.js';
 import aiRoutes from './routes/ai.js';
 import documentRoutes from './routes/documents.js';
+import certificateRoutes from './routes/certificates.js';
 
 // Initialize Dotenv
 dotenv.config();
@@ -81,6 +82,7 @@ app.use('/api/okrs', okrRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/certificates', certificateRoutes);
 
 // Serve compiled Android app APK
 app.get('/Dotcore.apk', (req, res) => {

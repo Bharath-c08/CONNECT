@@ -328,7 +328,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  if (!hydrated) return null;
+    // Route protection for idle accounts: only allow the 4 permitted views
+  useEffect(() => {
+    if (user?.accountStatus === 'idle') {
+      const allowedPaths = ['/dashboard/profile', '/dashboard/clock', '/dashboard/leaves', '/dashboard/onboarding'];
+      if (!allowedPaths.includes(pathname)) {
+        router.push('/dashboard/profile');
+      }
+    }
+  }, [user?.accountStatus, pathname, router]);
+
+if (!hydrated) return null;
 
   const handleLogout = () => {
     if (clockedIn) {
@@ -363,6 +373,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Identity & Compliance', index: '14', href: '/dashboard/onboarding', icon: ShieldCheck, role: 'all' },
   ];
 
+  const isIdle = user?.accountStatus === 'idle';
+
+  const idleNavItems = [
+    { name: 'Personal Details', index: '01', href: '/dashboard/profile', icon: UserIcon, role: 'all' },
+    { name: 'Shift Telemetry History', index: '02', href: '/dashboard/clock', icon: Clock, role: 'all' },
+    { name: 'Leave Logs History', index: '03', href: '/dashboard/leaves', icon: Calendar, role: 'all' },
+    { name: 'Identity & Compliance', index: '04', href: '/dashboard/onboarding', icon: ShieldCheck, role: 'all' },
+  ];
+
   // Helper to determine if user can see nav link
   const canSeeLink = (itemRole: string) => {
     if (!user) return false;
@@ -372,7 +391,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return false;
   };
 
+  const displayedNavItems: any[] = isIdle
+    ? idleNavItems
+    : navItems.filter((item: any) => canSeeLink(item.role));
+
   const getRoleBadge = (role: string) => {
+    if (user?.accountStatus === 'idle') {
+      return <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded font-mono select-none animate-pulse">IDLE_ACCOUNT</span>;
+    }
     switch (role) {
       case 'superadmin':
         return <span className="px-2 py-0.5 text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded font-mono select-none">ROOT_USER</span>;
@@ -428,7 +454,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Nav links */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1 relative select-none">
-          {navItems.filter(item => canSeeLink(item.role)).map((item) => {
+          {displayedNavItems.map((item: any) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
             return (
@@ -550,6 +576,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
 
+            {user?.accountStatus === 'idle' && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-500/15 border border-amber-500/40 text-amber-400 text-[10px] font-mono font-bold tracking-wider select-none animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span>ACCOUNT: IDLE (READ-ONLY)</span>
+              </div>
+            )}
             <div
               className="px-2.5 py-1 rounded font-mono text-[11px] font-bold select-none hidden sm:block border"
               style={{
@@ -703,7 +735,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </button>
                 </div>
                 <nav className="flex-grow min-h-[250px] overflow-y-auto py-4 px-3 flex flex-col gap-1.5 select-none">
-                  {navItems.filter(item => canSeeLink(item.role)).map((item) => {
+                  {displayedNavItems.map((item: any) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;
                     return (

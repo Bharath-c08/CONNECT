@@ -26,11 +26,13 @@ import {
   Building,
   UserCheck,
   Trash2,
-  Check
+  Check,
+  Award
 } from 'lucide-react';
 import { apiRequest } from '../../../utils/api';
 import PhotoCropUpload from '../../../components/PhotoCropUpload';
 import DigitalIdCard from '../../../components/DigitalIdCard';
+import UserCertificatesHub from '../../../components/UserCertificatesHub';
 import PrintableDocument from '../../../components/PrintableDocument';
 
 interface DocumentItem {
@@ -57,7 +59,7 @@ interface DocumentItem {
 }
 
 export default function OnboardingPage() {
-  const [activeTab, setActiveTab] = useState<'terms' | 'idcard' | 'admin'>('terms');
+  const [activeTab, setActiveTab] = useState<'terms' | 'idcard' | 'certificates' | 'admin'>('terms');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -434,6 +436,18 @@ export default function OnboardingPage() {
           <CreditCard className="w-4 h-4" />
           <span>Digital ID Card</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('certificates')}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'certificates'
+              ? 'bg-cyan-500/15 border border-cyan-500/40 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>Certificates & Exit Documents</span>
+        </button>
 
         {isStaff && (
           <button
@@ -682,13 +696,25 @@ export default function OnboardingPage() {
                     emergencyContactName: currentUser?.emergencyContactName,
                     address: currentUser?.address,
                     profilePhoto: currentUser?.profilePhoto,
-                    bloodGroup: currentUser?.bloodGroup
+                    bloodGroup: currentUser?.bloodGroup,
+                    accountStatus: currentUser?.accountStatus
                   }}
                 />
               )}
             </div>
           </div>
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* ── TAB: OFFICIAL CERTIFICATES & EXIT CREDENTIALS ── */}
+      {/* ======================================================== */}
+      {activeTab === 'certificates' && (
+        <UserCertificatesHub
+          currentUser={currentUser}
+          isStaff={isStaff}
+          allUsersList={allUsersList}
+        />
       )}
 
       {/* ======================================================== */}

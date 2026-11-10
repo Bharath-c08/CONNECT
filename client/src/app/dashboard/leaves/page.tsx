@@ -14,7 +14,8 @@ import {
   Activity,
   Users,
   Download,
-  FileText
+  FileText,
+  Lock
 } from 'lucide-react';
 import { apiRequest, getCurrentUser, getSocketUrl } from '../../../utils/api';
 import { exportToCSV, exportToPDF } from '../../../utils/export';
@@ -40,6 +41,7 @@ const itemVariants = {
 
 export default function LeavesPlannerPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const isIdle = currentUser?.accountStatus === 'idle';
   const [personalRequests, setPersonalRequests] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [allRequests, setAllRequests] = useState<any[]>([]);
@@ -190,6 +192,10 @@ export default function LeavesPlannerPage() {
   };
 
   const openRequestModal = () => {
+    if (isIdle) {
+      setError('Account is in IDLE status. Submitting leave requests is disabled.');
+      return;
+    }
     const userCategories = myAllowances.categories || [];
     const disabledSet = new Set(myAllowances.disabled || []);
     const available = userCategories.filter((c: any) => !disabledSet.has(c.name));
@@ -526,7 +532,7 @@ export default function LeavesPlannerPage() {
     return Math.max(0, limit - used);
   };
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  const isAdmin = (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && !isIdle;
 
   return (
     <div className="space-y-6 font-mono">
@@ -555,6 +561,22 @@ export default function LeavesPlannerPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Idle Account Banner */}
+      {isIdle && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 animate-pulse" />
+          <div>
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <span>ACCOUNT STATUS: IDLE (LEAVE LOGS ARCHIVE)</span>
+              <span className="px-1.5 py-0.5 rounded text-[8px] bg-amber-500/20 border border-amber-500/40 font-mono">READ-ONLY</span>
+            </h4>
+            <p className="text-[11px] text-amber-200/80 mt-0.5">
+              New leave requests cannot be created while an account is in idle status. Your complete leave logs history and past disconnect applications remain accessible below.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Page Header */}
       <motion.div 
@@ -620,14 +642,21 @@ export default function LeavesPlannerPage() {
             EXPORT
           </motion.button>
 
-          <motion.button 
-            whileTap={{ scale: 0.98 }}
-            onClick={openRequestModal} 
-            className="btn btn-primary cursor-pointer"
-          >
-            <Plus className="w-4.5 h-4.5" />
-            REQUEST DISCONNECT
-          </motion.button>
+          {isIdle ? (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold uppercase select-none">
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>LEAVE SUBMISSIONS LOCKED (IDLE)</span>
+            </div>
+          ) : (
+            <motion.button 
+              whileTap={{ scale: 0.98 }}
+              onClick={openRequestModal} 
+              className="btn btn-primary cursor-pointer"
+            >
+              <Plus className="w-4.5 h-4.5" />
+              REQUEST DISCONNECT
+            </motion.button>
+          )}
         </div>
       </motion.div>
 

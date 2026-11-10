@@ -28,6 +28,12 @@ router.post('/', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found.' });
+    if (user.accountStatus === 'idle') {
+      return res.status(403).json({
+        message: 'Account is in IDLE status. Leave applications are disabled for idle accounts.'
+      });
+    }
+
 
     // Load category dynamically
     const category = await LeaveCategory.findOne({ name: leaveType });

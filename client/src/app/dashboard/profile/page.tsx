@@ -65,6 +65,8 @@ export default function ProfilePage() {
   });
 
   const [userId, setUserId] = useState('');
+  const isIdle = userProfile?.accountStatus === 'idle';
+
 
   useEffect(() => {
     const usr = getCurrentUser();
@@ -149,6 +151,10 @@ export default function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isIdle) {
+      setError('Account is in IDLE status. Editing profile details is disabled.');
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -243,6 +249,22 @@ export default function ProfilePage() {
         </div>
       </motion.div>
 
+      {/* Idle Account Banner */}
+      {isIdle && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 animate-pulse" />
+          <div>
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <span>ACCOUNT STATUS: IDLE (READ-ONLY PROFILE)</span>
+              <span className="px-1.5 py-0.5 rounded text-[8px] bg-amber-500/20 border border-amber-500/40 font-mono">NON-EDITABLE</span>
+            </h4>
+            <p className="text-[11px] text-amber-200/80 mt-0.5">
+              This account is set to idle status. You can view all personal details, employment information, and bank records, but modifications and photo updates are locked.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── OPERATOR IDENTITY & PROFILE PICTURE HERO CARD ── */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
@@ -279,15 +301,17 @@ export default function ProfilePage() {
                 )}
 
                 {/* Hover trigger overlay */}
-                <button
-                  type="button"
-                  onClick={() => setShowPhotoEditor(!showPhotoEditor)}
-                  className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-cyan-400 cursor-pointer"
-                  title="Update profile picture"
-                >
-                  <Camera className="w-6 h-6 animate-pulse" />
-                  <span className="text-[8px] font-bold uppercase tracking-wider">CHANGE PHOTO</span>
-                </button>
+                {!isIdle && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPhotoEditor(!showPhotoEditor)}
+                    className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-cyan-400 cursor-pointer"
+                    title="Update profile picture"
+                  >
+                    <Camera className="w-6 h-6 animate-pulse" />
+                    <span className="text-[8px] font-bold uppercase tracking-wider">CHANGE PHOTO</span>
+                  </button>
+                )}
               </div>
 
               {/* Verified badge or indicator */}
@@ -420,7 +444,7 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div className="form-group">
                   <label className="form-label mb-1">FULL NAME *</label>
-                  <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} required className="input" />
+                  <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} required disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -443,17 +467,17 @@ export default function ProfilePage() {
 
                 <div className="form-group">
                   <label className="form-label mb-1">UPLINK EMAIL *</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="input" />
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} required disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label mb-1 flex items-center gap-1.5"><Phone className="w-3 h-3"/> MOBILE NUMBER</label>
-                    <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="input" />
+                    <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div className="form-group">
                     <label className="form-label mb-1 flex items-center gap-1.5"><MapPin className="w-3 h-3"/> LOCATION</label>
-                    <input type="text" name="address" value={formData.address} onChange={handleInputChange} className="input" />
+                    <input type="text" name="address" value={formData.address} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                 </div>
               </div>
@@ -474,17 +498,17 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div className="form-group">
                   <label className="form-label mb-1">EMERGENCY CONTACT NAME</label>
-                  <input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} className="input" />
+                  <input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label mb-1">CONTACT NUMBER</label>
-                    <input type="text" name="emergencyContactNumber" value={formData.emergencyContactNumber} onChange={handleInputChange} className="input" />
+                    <input type="text" name="emergencyContactNumber" value={formData.emergencyContactNumber} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div className="form-group">
                     <label className="form-label mb-1 flex items-center gap-1.5"><Droplet className="w-3 h-3 text-rose-500"/> BLOOD GROUP</label>
-                    <input type="text" name="bloodGroup" value={formData.bloodGroup} onChange={handleInputChange} placeholder="e.g. O+, AB-" className="input uppercase" />
+                    <input type="text" name="bloodGroup" value={formData.bloodGroup} onChange={handleInputChange} placeholder="e.g. O+, AB-" disabled={isIdle} className="input uppercase disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                 </div>
               </div>
@@ -514,7 +538,7 @@ export default function ProfilePage() {
                   value={formData.password} 
                   onChange={handleInputChange} 
                   placeholder="Leave blank to keep unchanged" 
-                  className="input" 
+                  disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" 
                 />
               </div>
             </motion.div>
@@ -535,31 +559,31 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label mb-1">PAN NUMBER</label>
-                    <input type="text" name="panDetails" value={formData.panDetails} onChange={handleInputChange} className="input uppercase" />
+                    <input type="text" name="panDetails" value={formData.panDetails} onChange={handleInputChange} disabled={isIdle} className="input uppercase disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div className="form-group">
                     <label className="form-label mb-1">AADHAAR NUMBER</label>
-                    <input type="text" name="aadhaarDetails" value={formData.aadhaarDetails} onChange={handleInputChange} className="input" />
+                    <input type="text" name="aadhaarDetails" value={formData.aadhaarDetails} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-white/5 space-y-4">
                   <div className="form-group">
                     <label className="form-label mb-1">ACCOUNT HOLDER FULL NAME</label>
-                    <input type="text" name="accountHolderFullName" value={formData.accountHolderFullName} onChange={handleInputChange} className="input" />
+                    <input type="text" name="accountHolderFullName" value={formData.accountHolderFullName} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div className="form-group">
                     <label className="form-label mb-1 flex items-center gap-1.5"><Building className="w-3 h-3"/> BANK ACCOUNT NUMBER</label>
-                    <input type="text" name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleInputChange} className="input" />
+                    <input type="text" name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="form-group">
                       <label className="form-label mb-1">IFSC CODE</label>
-                      <input type="text" name="ifscCode" value={formData.ifscCode} onChange={handleInputChange} className="input uppercase" />
+                      <input type="text" name="ifscCode" value={formData.ifscCode} onChange={handleInputChange} disabled={isIdle} className="input uppercase disabled:opacity-60 disabled:cursor-not-allowed" />
                     </div>
                     <div className="form-group">
                       <label className="form-label mb-1">BRANCH NAME</label>
-                      <input type="text" name="branchName" value={formData.branchName} onChange={handleInputChange} className="input" />
+                      <input type="text" name="branchName" value={formData.branchName} onChange={handleInputChange} disabled={isIdle} className="input disabled:opacity-60 disabled:cursor-not-allowed" />
                     </div>
                   </div>
                 </div>
@@ -571,15 +595,22 @@ export default function ProfilePage() {
 
         {/* Submit Actions */}
         <div className="flex justify-end pt-4">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            type="submit"
-            disabled={saving}
-            className="btn btn-primary h-11 px-8 text-xs font-extrabold cursor-pointer flex items-center gap-2 disabled:opacity-50"
-          >
-            {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? 'UPDATING...' : 'SAVE CHANGES'}
-          </motion.button>
+          {isIdle ? (
+            <div className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold uppercase">
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span>PROFILE EDITING LOCKED (IDLE ACCOUNT)</span>
+            </div>
+          ) : (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              type="submit"
+              disabled={saving}
+              className="btn btn-primary h-11 px-8 text-xs font-extrabold cursor-pointer flex items-center gap-2 disabled:opacity-50"
+            >
+              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'UPDATING...' : 'SAVE CHANGES'}
+            </motion.button>
+          )}
         </div>
 
       </form>

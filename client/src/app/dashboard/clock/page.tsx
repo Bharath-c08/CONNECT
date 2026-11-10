@@ -414,7 +414,8 @@ export default function TimesheetsPage() {
   };
 
   const stats = getAggregates();
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  const isIdle = currentUser?.accountStatus === 'idle';
+  const isAdmin = (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && !isIdle;
 
   return (
     <div className="flex flex-col gap-8 font-mono">

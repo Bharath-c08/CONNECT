@@ -36,6 +36,7 @@ interface DigitalIdCardProps {
     employmentType?: string;
     joiningDate?: string | Date;
     email?: string;
+    accountStatus?: string;
   };
   verificationUrl?: string;
 }
@@ -50,6 +51,7 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
   const [siteUrl, setSiteUrl] = useState<string>('https://connect.markdot.com');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isIdle = user.accountStatus === 'idle';
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -474,9 +476,15 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
           <div>
             <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
               <span>DIGITAL EMPLOYEE ID CARD // CR80 WALLET SPEC</span>
-              <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                ACTIVE_CREDENTIAL
-              </span>
+              {isIdle ? (
+                <span className="text-[8px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">
+                  IDLE_ACCOUNT
+                </span>
+              ) : (
+                <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  ACTIVE_CREDENTIAL
+                </span>
+              )}
             </h4>
             <p className="text-[9px] text-slate-500">Dual-sided standardized layout with verification micro-QR</p>
           </div>
@@ -775,18 +783,18 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
               <span
                 style={{
                   fontSize: '8px',
-                  fontWeight: 800,
+                  fontWeight: 900,
                   textTransform: 'uppercase',
                   padding: '2px 8px',
                   borderRadius: '4px',
-                  background: '#ecfdf5',
-                  color: '#065f46',
-                  border: '1px solid #a7f3d0',
+                  background: isIdle ? '#fef3c7' : '#ecfdf5',
+                  color: isIdle ? '#92400e' : '#065f46',
+                  border: isIdle ? '1px solid #fcd34d' : '1px solid #a7f3d0',
                   display: 'inline-block',
                   marginTop: '2px'
                 }}
               >
-                {user.employmentType || 'FULL-TIME'}
+                {isIdle ? 'IDLE ACCOUNT' : (user.employmentType || 'FULL-TIME')}
               </span>
             </div>
           </div>
@@ -1072,6 +1080,32 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
             color: '#0f172a'
           }}
         >
+          {/* Idle Account Ribbon */}
+          {isIdle && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '44px',
+                right: '-38px',
+                transform: 'rotate(45deg)',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+                color: '#ffffff',
+                fontSize: '8px',
+                fontWeight: 900,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                padding: '4px 44px',
+                boxShadow: '0 2px 10px rgba(180, 83, 9, 0.4)',
+                zIndex: 40,
+                borderTop: '1px solid rgba(255,255,255,0.4)',
+                borderBottom: '1px solid rgba(0,0,0,0.2)',
+                pointerEvents: 'none'
+              }}
+            >
+              IDLE ACCOUNT
+            </div>
+          )}
+
           {/* Top Lanyard Slot */}
           <div
             style={{
@@ -1123,18 +1157,35 @@ export default function DigitalIdCard({ user, verificationUrl }: DigitalIdCardPr
             >
               EMPLOYEE CREDENTIAL & EMERGENCY RECORD
             </span>
-            <p
-              style={{
-                fontSize: '7px',
-                color: '#64748b',
-                textTransform: 'uppercase',
-                fontWeight: 600,
-                marginTop: '2px',
-                margin: 0
-              }}
-            >
-              Property of Markdot Intellect Inc. • Official Identification
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+              <p
+                style={{
+                  fontSize: '7px',
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  margin: 0
+                }}
+              >
+                Property of Markdot Intellect Inc. • Official Identification
+              </p>
+              {isIdle && (
+                <span
+                  style={{
+                    fontSize: '6.5px',
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    color: '#92400e',
+                    background: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    padding: '1px 5px',
+                    borderRadius: '3px'
+                  }}
+                >
+                  IDLE ACCOUNT
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Required Detailed Fields (DOB, Phone, Emergency Contact, Address) */}

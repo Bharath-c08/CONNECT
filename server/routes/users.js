@@ -39,7 +39,7 @@ router.get('/', verifyToken, async (req, res) => {
             { _id: assignedAdminId },
             { assignedAdmin: assignedAdminId }
           ]
-        }).select('fullName role jobTitle _id employeeId email assignedAdmin profilePhoto');
+        }).select('fullName role jobTitle _id employeeId email assignedAdmin profilePhoto accountStatus');
       } else {
         // If a user has no assigned admin, they see themselves and super admins
         users = await User.find({
@@ -47,13 +47,114 @@ router.get('/', verifyToken, async (req, res) => {
             { role: 'superadmin' },
             { _id: req.user.userId }
           ]
-        }).select('fullName role jobTitle _id employeeId email profilePhoto');
+        }).select('fullName role jobTitle _id employeeId email profilePhoto accountStatus');
       }
     }
     
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving employee profiles', error: error.message });
+  }
+});
+
+// @route   POST /api/users/make-all-idle
+// @desc    Set all non-superadmin accounts to 'idle' (Superadmin only)
+router.post('/make-all-idle', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Only Superadmin can make all accounts idle.' });
+    }
+
+    const result = await User.updateMany(
+      { role: { $ne: 'superadmin' } },
+      { $set: { accountStatus: 'idle' } }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('all-accounts-idle', { timestamp: new Date() });
+    }
+
+    res.json({
+      message: `All employee accounts set to IDLE successfully (${result.modifiedCount} updated).`,
+      count: result.modifiedCount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error making accounts idle', error: error.message });
+  }
+});
+
+// @route   POST /api/users/make-all-working
+// @desc    Restore all accounts to 'working' status (Superadmin only)
+router.post('/make-all-working', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Only Superadmin can restore accounts to working status.' });
+    }
+
+    const result = await User.updateMany(
+      { accountStatus: 'idle' },
+      { $set: { accountStatus: 'working' } }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('all-accounts-working', { timestamp: new Date() });
+    }
+
+    res.json({
+      message: `All employee accounts restored to WORKING status (${result.modifiedCount} updated).`,
+      count: result.modifiedCount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error restoring accounts to working', error: error.message });
+  }
+});
+
+// @route   PUT /api/users/:id/account-status
+// @desc    Toggle or set employee account status between 'working' and 'idle' (Superadmin only)
+router.put('/:id/account-status', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Only Superadmin can modify account working/idle status.' });
+    }
+
+    const { accountStatus } = req.body;
+    if (!['working', 'idle'].includes(accountStatus)) {
+      return res.status(400).json({ message: 'Invalid status. Must be "working" or "idle".' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'Employee not found.' });
+    }
+
+    if (user.role === 'superadmin' && accountStatus === 'idle') {
+      return res.status(400).json({ message: 'Superadmin accounts cannot be set to idle.' });
+    }
+
+    user.accountStatus = accountStatus;
+    await user.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('account-status-changed', {
+        userId: user._id,
+        accountStatus: user.accountStatus,
+      });
+    }
+
+    res.json({
+      message: `Account status updated to ${accountStatus}.`,
+      user: {
+        _id: user._id,
+        fullName: user.fullName,
+        employeeId: user.employeeId,
+        accountStatus: user.accountStatus,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating account status', error: error.message });
   }
 });
 
@@ -187,6 +288,16 @@ router.put('/:id', verifyToken, async (req, res) => {
     // Regular users can only update their own profile and cannot edit critical parameters
     const isSelf = req.user.userId === req.params.id;
     const isStaff = req.user.role === 'admin' || req.user.role === 'superadmin';
+    // Idle accounts can log in, view details, but cannot edit
+    const requestingUser = await User.findById(req.user.userId);
+    if (requestingUser && requestingUser.accountStatus === 'idle' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Account is in IDLE status. Profile editing is disabled.' });
+    }
+    // Only superadmin can modify accountStatus directly
+    if (req.user.role !== 'superadmin') {
+      delete updates.accountStatus;
+    }
+
 
     if (!isSelf && !isStaff) {
       return res.status(403).json({ message: 'Access denied' });

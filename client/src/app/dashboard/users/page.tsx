@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users,
+  Clock,
   Search,
   Plus,
   Edit2,
@@ -97,6 +98,10 @@ export default function UserDirectoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const isSuperAdmin = currentUser?.role === 'superadmin';
 
   // Modals state
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -501,6 +506,61 @@ export default function UserDirectoryPage() {
     setExportModalOpen(false);
   };
 
+  const handleToggleAccountStatus = async (userId: string, newStatus: 'working' | 'idle', name: string) => {
+    setError('');
+    setSuccess('');
+    setStatusUpdatingId(userId);
+    try {
+      const res = await apiRequest(`/users/${userId}/account-status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountStatus: newStatus }),
+      });
+      setSuccess(res.message || `Operator ${name} status updated to ${newStatus.toUpperCase()}.`);
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || 'Error updating account status');
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
+
+  const handleMakeAllIdle = async () => {
+    if (!confirm('CONFIRM ACTION: Set ALL operator accounts to IDLE status?\n\nIdle accounts can view their details and shift/leave history, but cannot clock in/out, edit details, or apply for leave.')) {
+      return;
+    }
+    setError('');
+    setSuccess('');
+    setBulkActionLoading(true);
+    try {
+      const res = await apiRequest('/users/make-all-idle', { method: 'POST' });
+      setSuccess(res.message || 'All operator accounts set to IDLE status.');
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || 'Error setting accounts to idle');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleMakeAllWorking = async () => {
+    if (!confirm('CONFIRM ACTION: Restore ALL operator accounts to WORKING status?')) {
+      return;
+    }
+    setError('');
+    setSuccess('');
+    setBulkActionLoading(true);
+    try {
+      const res = await apiRequest('/users/make-all-working', { method: 'POST' });
+      setSuccess(res.message || 'All operator accounts restored to WORKING status.');
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || 'Error restoring accounts to working');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string, name: string) => {
     if (!confirm(`CONFIRM ABSOLUTE PURGE OF OPERATOR: ${name.toUpperCase()}?\nTHIS WILL REMOVE ALL LINKED CORE DATA.`)) {
       return;
@@ -526,8 +586,11 @@ export default function UserDirectoryPage() {
 
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesType = typeFilter === 'all' || user.employmentType === typeFilter;
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'idle' ? user.accountStatus === 'idle' : user.accountStatus !== 'idle');
 
-    return matchesSearch && matchesRole && matchesType;
+    return matchesSearch && matchesRole && matchesType && matchesStatus;
   });
 
   const getRoleColor = (role: string) => {
@@ -600,6 +663,32 @@ export default function UserDirectoryPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          {isSuperAdmin && (
+            <>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleMakeAllIdle}
+                disabled={bulkActionLoading}
+                className="btn btn-secondary cursor-pointer flex items-center gap-1.5 text-amber-400 border-amber-500/30 hover:bg-amber-500/10 text-[10px] font-extrabold uppercase disabled:opacity-50"
+                title="Set all non-superadmin accounts to idle status"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>MAKE ALL IDLE</span>
+              </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleMakeAllWorking}
+                disabled={bulkActionLoading}
+                className="btn btn-secondary cursor-pointer flex items-center gap-1.5 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 text-[10px] font-extrabold uppercase disabled:opacity-50"
+                title="Restore all accounts to working status"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>RESTORE ALL WORKING</span>
+              </motion.button>
+            </>
+          )}
+
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={() => setExportModalOpen(true)}
@@ -638,7 +727,7 @@ export default function UserDirectoryPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...springTransition, delay: 0.05 }}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 rounded select-none bg-zinc-950/40"
+        className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded select-none bg-zinc-950/40"
         style={{ border: '1px solid var(--border)' }}
       >
         <div className="relative flex items-center w-full">
@@ -676,6 +765,16 @@ export default function UserDirectoryPage() {
           <option value="parttime">PART TIME</option>
           <option value="Intern">INTERN</option>
         </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="select"
+        >
+          <option value="all">ALL STATUSES (WORKING & IDLE)</option>
+          <option value="working">WORKING OPERATORS ONLY</option>
+          <option value="idle">IDLE OPERATORS ONLY</option>
+        </select>
       </motion.div>
 
       {loading ? (
@@ -707,7 +806,18 @@ export default function UserDirectoryPage() {
                 {/* Header info */}
                 <div className="flex items-start justify-between gap-3 mb-4 select-none">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-extrabold truncate text-sm tracking-widest text-white">{user.fullName.toUpperCase()}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold truncate text-sm tracking-widest text-white">{user.fullName.toUpperCase()}</h3>
+                      {user.accountStatus === 'idle' ? (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                          IDLE
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          WORKING
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] font-bold truncate mt-0.5 text-slate-400 uppercase">{user.jobTitle || 'UNASSIGNED ROLE'}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase shrink-0 badge ${getRoleColor(user.role)}`}>
@@ -776,7 +886,30 @@ export default function UserDirectoryPage() {
               </div>
  
               {/* CRUD Actions */}
-              <div className="mt-5 pt-3 border-t flex items-center justify-end gap-2 select-none" style={{ borderColor: 'var(--border)' }}>
+              <div className="mt-5 pt-3 border-t flex items-center justify-between gap-2 select-none" style={{ borderColor: 'var(--border)' }}>
+                {isSuperAdmin && user.role !== 'superadmin' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAccountStatus(user._id, user.accountStatus === 'idle' ? 'working' : 'idle', user.fullName)}
+                    disabled={statusUpdatingId === user._id}
+                    className={`px-2.5 py-1 rounded text-[9px] font-mono font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer border ${
+                      user.accountStatus === 'idle'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                    }`}
+                    title={user.accountStatus === 'idle' ? 'Restore to Working Account' : 'Set Account to Idle'}
+                  >
+                    {statusUpdatingId === user._id ? (
+                      <span className="animate-spin text-[10px]">⏳ UPDATING...</span>
+                    ) : user.accountStatus === 'idle' ? (
+                      <span>ACTIVATE WORKING</span>
+                    ) : (
+                      <span>SET IDLE</span>
+                    )}
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => openEditModal(user)}
@@ -793,6 +926,7 @@ export default function UserDirectoryPage() {
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </motion.button>
+                </div>
               </div>
             </motion.div>
           ))}
