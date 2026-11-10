@@ -51,11 +51,12 @@ router.get('/all', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
 });
 
 // @route   POST /api/certificates
-// @desc    Issue a new certificate for an employee (Admin/Superadmin only)
+// @desc    Issue new certificate(s) for employee(s) (Admin/Superadmin only) - Supports multi-user selection
 router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
   try {
     const {
       userId,
+      userIds,
       certificateType,
       title,
       content,
@@ -64,52 +65,97 @@ router.post('/', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
       metadata,
     } = req.body;
 
-    if (!userId || !certificateType || !title || !content) {
+    // Collect array of target IDs
+    let targets = [];
+    if (Array.isArray(userIds) && userIds.length > 0) {
+      targets = userIds;
+    } else if (userId) {
+      targets = [userId];
+    }
+
+    if (targets.length === 0 || !certificateType || !title || !content) {
       return res.status(400).json({
-        message: 'Please provide employee, certificate type, title, and document content.',
+        message: 'Please select at least one employee, certificate type, title, and document content.',
       });
     }
 
-    const targetUser = await User.findById(userId);
-    if (!targetUser) {
-      return res.status(404).json({ message: 'Target employee not found.' });
+    const targetUsers = await User.find({ _id: { $in: targets } });
+    if (targetUsers.length === 0) {
+      return res.status(404).json({ message: 'No valid employees found for certificate issuance.' });
     }
 
     const issuer = await User.findById(req.user.userId);
-    const verificationCode = generateVerificationCode(certificateType);
+    const issuerName = issuer ? issuer.fullName : 'Authorized Authority';
+    const issuerRole = issuer ? issuer.role.toUpperCase() : 'ADMINISTRATION';
 
-    const certificate = new Certificate({
-      userId: targetUser._id,
-      employeeId: targetUser.employeeId,
-      fullName: targetUser.fullName,
-      certificateType,
-      title,
-      content,
-      issueDate: issueDate || new Date(),
-      effectiveDate: effectiveDate || new Date(),
-      issuedBy: req.user.userId,
-      issuedByName: issuer ? issuer.fullName : 'Authorized Authority',
-      issuedByRole: issuer ? issuer.role.toUpperCase() : 'ADMINISTRATION',
-      status: 'issued',
-      verificationCode,
-      metadata: {
-        designation: metadata?.designation || targetUser.jobTitle || '',
-        department: metadata?.department || 'Operations',
-        joiningDate: metadata?.joiningDate || targetUser.joiningDate,
-        relievingDate: metadata?.relievingDate || null,
-        reason: metadata?.reason || '',
-        notes: metadata?.notes || '',
-      },
-    });
+    const issuedCertificates = [];
 
-    await certificate.save();
+    for (const targetUser of targetUsers) {
+      const verificationCode = generateVerificationCode(certificateType);
+
+      const joiningFormatted = targetUser.joiningDate
+        ? new Date(targetUser.joiningDate).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'the date of joining';
+
+      const relievingFormatted = metadata?.relievingDate
+        ? new Date(metadata.relievingDate).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+
+      // Replace dynamic variable placeholders for each user if present
+      let userSpecificContent = content
+        .replace(/{{fullName}}/g, targetUser.fullName)
+        .replace(/{{employeeId}}/g, targetUser.employeeId)
+        .replace(/{{jobTitle}}/g, targetUser.jobTitle || metadata?.designation || 'Operator')
+        .replace(/{{joiningDate}}/g, joiningFormatted)
+        .replace(/{{relievingDate}}/g, relievingFormatted);
+
+      const cert = new Certificate({
+        userId: targetUser._id,
+        employeeId: targetUser.employeeId,
+        fullName: targetUser.fullName,
+        certificateType,
+        title,
+        content: userSpecificContent,
+        issueDate: issueDate || new Date(),
+        effectiveDate: effectiveDate || new Date(),
+        issuedBy: req.user.userId,
+        issuedByName: issuerName,
+        issuedByRole: issuerRole,
+        status: 'issued',
+        verificationCode,
+        metadata: {
+          designation: metadata?.designation || targetUser.jobTitle || '',
+          department: metadata?.department || 'Operations',
+          joiningDate: targetUser.joiningDate,
+          relievingDate: metadata?.relievingDate || null,
+          reason: metadata?.reason || '',
+          notes: metadata?.notes || '',
+        },
+      });
+
+      await cert.save();
+      issuedCertificates.push(cert);
+    }
 
     res.status(201).json({
-      message: 'Certificate successfully issued.',
-      certificate,
+      message: `Successfully issued ${issuedCertificates.length} certificate(s).`,
+      count: issuedCertificates.length,
+      certificates: issuedCertificates,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error issuing certificate', error: error.message });
+    res.status(500).json({ message: 'Error issuing certificates', error: error.message });
   }
 });
 

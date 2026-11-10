@@ -20,7 +20,8 @@ import {
   Loader2,
   Building,
   Sparkles,
-  Eye
+  Eye,
+  Check
 } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { generateQrSvg } from '../utils/qr';
@@ -79,7 +80,8 @@ export default function UserCertificatesHub({
   // Issue Certificate Modal
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [issuingLoading, setIssuingLoading] = useState(false);
-  const [selectedTargetUserId, setSelectedTargetUserId] = useState('');
+  const [selectedTargetUserIds, setSelectedTargetUserIds] = useState<string[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
   const [certFormData, setCertFormData] = useState({
     certificateType: 'noc_letter',
     title: 'No Objection Certificate (NoC)',
@@ -133,7 +135,7 @@ export default function UserCertificatesHub({
   }, [previewCert]);
 
   // Template generator
-  const generateTemplateContent = (type: string, user: any) => {
+  const generateTemplateContent = (type: string, user?: any) => {
     const today = new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -145,7 +147,7 @@ export default function UserCertificatesHub({
           month: 'long',
           day: 'numeric',
         })
-      : 'the date of joining';
+      : '{{joiningDate}}';
     const relieving = certFormData.relievingDate
       ? new Date(certFormData.relievingDate).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -154,9 +156,9 @@ export default function UserCertificatesHub({
         })
       : today;
 
-    const empName = user?.fullName || '[Employee Full Name]';
-    const empId = user?.employeeId || '[Employee ID]';
-    const role = user?.jobTitle || certFormData.designation || '[Designation]';
+    const empName = user?.fullName || '{{fullName}}';
+    const empId = user?.employeeId || '{{employeeId}}';
+    const role = user?.jobTitle || certFormData.designation || '{{jobTitle}}';
 
     switch (type) {
       case 'noc_letter':
@@ -176,16 +178,43 @@ export default function UserCertificatesHub({
     }
   };
 
-  const handleTargetUserChange = (uId: string) => {
-    setSelectedTargetUserId(uId);
-    const target = allUsersList.find((u) => u._id === uId);
-    if (target) {
+  const handleToggleUserSelection = (userId: string) => {
+    const isSelected = selectedTargetUserIds.includes(userId);
+    const next = isSelected
+      ? selectedTargetUserIds.filter((id) => id !== userId)
+      : [...selectedTargetUserIds, userId];
+    setSelectedTargetUserIds(next);
+
+    // If exactly 1 user is selected, customize preview with their data
+    if (next.length === 1) {
+      const target = allUsersList.find((u) => u._id === next[0]);
+      if (target) {
+        setCertFormData((prev) => ({
+          ...prev,
+          designation: target.jobTitle || prev.designation,
+          content: generateTemplateContent(prev.certificateType, target),
+        }));
+      }
+    } else if (next.length > 1 && selectedTargetUserIds.length <= 1) {
+      // Revert to placeholder template for batch
       setCertFormData((prev) => ({
         ...prev,
-        designation: target.jobTitle || '',
-        content: generateTemplateContent(prev.certificateType, target),
+        content: generateTemplateContent(prev.certificateType, null),
       }));
     }
+  };
+
+  const handleSelectAllUsers = () => {
+    const allIds = allUsersList.map((u) => u._id);
+    setSelectedTargetUserIds(allIds);
+    setCertFormData((prev) => ({
+      ...prev,
+      content: generateTemplateContent(prev.certificateType, null),
+    }));
+  };
+
+  const handleClearUserSelection = () => {
+    setSelectedTargetUserIds([]);
   };
 
   const handleTypeChange = (newType: string) => {
@@ -195,7 +224,9 @@ export default function UserCertificatesHub({
     if (newType === 'bonafide_letter') newTitle = 'Bonafide Employee Certificate';
     if (newType === 'custom_certificate') newTitle = 'Official Institutional Certificate';
 
-    const target = allUsersList.find((u) => u._id === selectedTargetUserId);
+    const target = selectedTargetUserIds.length === 1
+      ? allUsersList.find((u) => u._id === selectedTargetUserIds[0])
+      : null;
 
     setCertFormData((prev) => ({
       ...prev,
@@ -207,8 +238,8 @@ export default function UserCertificatesHub({
 
   const handleIssueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTargetUserId) {
-      setError('Please select an employee.');
+    if (selectedTargetUserIds.length === 0) {
+      setError('Please select at least one employee.');
       return;
     }
     if (!certFormData.content.trim()) {
@@ -219,11 +250,11 @@ export default function UserCertificatesHub({
     setIssuingLoading(true);
     setError('');
     try {
-      await apiRequest('/certificates', {
+      const res = await apiRequest('/certificates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: selectedTargetUserId,
+          userIds: selectedTargetUserIds,
           certificateType: certFormData.certificateType,
           title: certFormData.title,
           content: certFormData.content,
@@ -238,7 +269,8 @@ export default function UserCertificatesHub({
         }),
       });
 
-      setSuccess(`Certificate "${certFormData.title}" successfully issued and archived.`);
+      const count = res.count || selectedTargetUserIds.length;
+      setSuccess(`Certificate "${certFormData.title}" successfully issued and archived for ${count} employee(s).`);
       setShowIssueModal(false);
       resetIssueForm();
       fetchCertificates();
@@ -264,13 +296,14 @@ export default function UserCertificatesHub({
   };
 
   const resetIssueForm = () => {
-    setSelectedTargetUserId('');
+    setSelectedTargetUserIds([]);
+    setUserSearchQuery('');
     setCertFormData({
       certificateType: 'noc_letter',
       title: 'No Objection Certificate (NoC)',
       issueDate: new Date().toISOString().split('T')[0],
       effectiveDate: new Date().toISOString().split('T')[0],
-      content: '',
+      content: generateTemplateContent('noc_letter', null),
       designation: '',
       department: 'Engineering & Operations',
       relievingDate: '',
@@ -698,22 +731,154 @@ export default function UserCertificatesHub({
             </div>
 
             <form onSubmit={handleIssueSubmit} className="flex flex-col gap-4 text-xs font-mono">
-              {/* Select Employee */}
-              <div className="form-group">
-                <label className="form-label mb-1">SELECT EMPLOYEE *</label>
-                <select
-                  value={selectedTargetUserId}
-                  onChange={(e) => handleTargetUserChange(e.target.value)}
-                  className="select w-full"
-                  required
-                >
-                  <option value="">-- Choose Target Employee --</option>
-                  {allUsersList.map((u) => (
-                    <option key={u._id} value={u._id}>
-                      {u.fullName} ({u.employeeId}) — {u.jobTitle || u.role}
-                    </option>
-                  ))}
-                </select>
+              {/* Multi-User Employee Selection */}
+              <div className="form-group space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="form-label mb-0">TARGET EMPLOYEES *</label>
+                    <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                      {selectedTargetUserIds.length} Selected
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[9px] font-bold">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllUsers}
+                      className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    >
+                      Select All ({allUsersList.length})
+                    </button>
+                    {selectedTargetUserIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearUserSelection}
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Search / Filter Input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="Filter employees by name, ID, role, or title..."
+                    className="w-full h-8 pl-8 pr-8 rounded-lg bg-zinc-900 border border-white/10 text-white placeholder-slate-500 text-[10px] outline-none focus:border-cyan-400"
+                  />
+                  {userSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected User Chips */}
+                {selectedTargetUserIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 rounded-lg bg-zinc-900/40 border border-white/5">
+                    {selectedTargetUserIds.map((userId) => {
+                      const userObj = allUsersList.find((u) => u._id === userId);
+                      if (!userObj) return null;
+                      return (
+                        <span
+                          key={userId}
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-[9px] font-bold"
+                        >
+                          <span>{userObj.fullName}</span>
+                          <span className="text-[8px] text-cyan-500/80 font-mono">({userObj.employeeId})</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserSelection(userId)}
+                            className="hover:text-rose-400 cursor-pointer ml-0.5"
+                            title="Remove employee"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Scrollable Checkbox Employee List */}
+                <div className="max-h-44 overflow-y-auto rounded-lg border border-white/10 bg-zinc-900/60 divide-y divide-white/5">
+                  {allUsersList
+                    .filter((u) => {
+                      if (!userSearchQuery) return true;
+                      const q = userSearchQuery.toLowerCase();
+                      return (
+                        (u.fullName || '').toLowerCase().includes(q) ||
+                        (u.employeeId || '').toLowerCase().includes(q) ||
+                        (u.role || '').toLowerCase().includes(q) ||
+                        (u.jobTitle || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map((u) => {
+                      const isSelected = selectedTargetUserIds.includes(u._id);
+                      return (
+                        <div
+                          key={u._id}
+                          onClick={() => handleToggleUserSelection(u._id)}
+                          className={`p-2 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-cyan-500/15 border-l-2 border-cyan-400 text-white'
+                              : 'hover:bg-white/[0.03] text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Custom Styled Checkbox */}
+                            <div
+                              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected
+                                  ? 'bg-cyan-500 border-cyan-400 text-zinc-950'
+                                  : 'border-white/20 bg-zinc-950'
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold truncate flex items-center gap-1.5">
+                                <span>{u.fullName}</span>
+                                <span className="text-[9px] text-cyan-400 font-mono font-semibold">
+                                  ({u.employeeId})
+                                </span>
+                              </p>
+                              <p className="text-[9px] text-slate-400 truncate">
+                                {u.jobTitle || 'Operator'} &bull; {u.role.toUpperCase()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase shrink-0 ${
+                            u.accountStatus === 'idle'
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {u.accountStatus === 'idle' ? 'IDLE' : 'WORKING'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {selectedTargetUserIds.length > 1 && (
+                  <p className="text-[9px] text-cyan-400/80 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-cyan-400" />
+                    <span>
+                      Batch issuance active ({selectedTargetUserIds.length} recipients): Each employee receives their own personalized certificate with dynamic parameters.
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* Certificate Type */}
@@ -776,14 +941,14 @@ export default function UserCertificatesHub({
                       value={certFormData.relievingDate}
                       onChange={(e) => {
                         setCertFormData({ ...certFormData, relievingDate: e.target.value });
-                        const target = allUsersList.find((u) => u._id === selectedTargetUserId);
-                        if (target) {
-                          setCertFormData((prev) => ({
-                            ...prev,
-                            relievingDate: e.target.value,
-                            content: generateTemplateContent(prev.certificateType, target),
-                          }));
-                        }
+                        const target = selectedTargetUserIds.length === 1
+                          ? allUsersList.find((u) => u._id === selectedTargetUserIds[0])
+                          : null;
+                        setCertFormData((prev) => ({
+                          ...prev,
+                          relievingDate: e.target.value,
+                          content: generateTemplateContent(prev.certificateType, target),
+                        }));
                       }}
                       className="input w-full"
                     />
@@ -798,13 +963,13 @@ export default function UserCertificatesHub({
                   <button
                     type="button"
                     onClick={() => {
-                      const target = allUsersList.find((u) => u._id === selectedTargetUserId);
-                      if (target) {
-                        setCertFormData((prev) => ({
-                          ...prev,
-                          content: generateTemplateContent(prev.certificateType, target),
-                        }));
-                      }
+                      const target = selectedTargetUserIds.length === 1
+                        ? allUsersList.find((u) => u._id === selectedTargetUserIds[0])
+                        : null;
+                      setCertFormData((prev) => ({
+                        ...prev,
+                        content: generateTemplateContent(prev.certificateType, target),
+                      }));
                     }}
                     className="text-[10px] text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
                   >
@@ -839,7 +1004,7 @@ export default function UserCertificatesHub({
                   }}
                 >
                   {issuingLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{issuingLoading ? 'Issuing...' : 'Issue & Archive Certificate'}</span>
+                  <span>{issuingLoading ? 'Issuing...' : selectedTargetUserIds.length > 1 ? `Issue to ${selectedTargetUserIds.length} Employees` : 'Issue & Archive Certificate'}</span>
                 </button>
               </div>
             </form>
