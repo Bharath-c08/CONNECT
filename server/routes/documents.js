@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Document from '../models/Document.js';
 import DocumentSignature from '../models/DocumentSignature.js';
 import User from '../models/User.js';
+import Certificate from '../models/Certificate.js';
 import { verifyToken, isAdminOrSuperAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -91,6 +92,36 @@ router.get('/verify/:verificationId', async (req, res) => {
   try {
     const { verificationId } = req.params;
     const cleanId = verificationId.trim().toUpperCase();
+
+    // 1. Check if verificationId matches an issued Certificate (e.g. MD-NOC-..., MD-REL-..., etc.)
+    const cert = await Certificate.findOne({
+      verificationCode: { $regex: new RegExp('^' + cleanId + '$', 'i') }
+    })
+      .populate('userId', 'fullName employeeId jobTitle email employmentType bloodGroup profilePhoto')
+      .populate('issuedBy', 'fullName role email');
+
+    if (cert) {
+      return res.json({
+        verified: cert.status === 'issued',
+        type: 'certificate',
+        status: cert.status === 'issued' ? 'Valid Authentic Certificate' : 'Revoked / Inactive',
+        verificationId: cert.verificationCode,
+        certificateType: cert.certificateType,
+        documentTitle: cert.title,
+        fullName: cert.fullName,
+        employeeId: cert.employeeId,
+        jobTitle: cert.metadata?.designation || cert.userId?.jobTitle || 'Technical Operator',
+        department: cert.metadata?.department || 'Operations',
+        issueDate: cert.issueDate,
+        effectiveDate: cert.effectiveDate,
+        relievingDate: cert.metadata?.relievingDate || null,
+        issuedByName: cert.issuedByName,
+        issuedByRole: cert.issuedByRole,
+        content: cert.content,
+        verifiedAt: new Date(),
+        issuer: 'Markdot Intellect Inc. Credential Authority'
+      });
+    }
 
     // Check if this is an Employee ID query
     if (cleanId.startsWith('EMP-')) {

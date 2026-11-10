@@ -179,17 +179,43 @@ router.delete('/:id', verifyToken, isAdminOrSuperAdmin, async (req, res) => {
 // @desc    Verify certificate authenticity by verification code
 router.get('/verify/:code', async (req, res) => {
   try {
-    const certificate = await Certificate.findOne({ verificationCode: req.params.code })
-      .populate('userId', 'fullName employeeId jobTitle email')
-      .populate('issuedBy', 'fullName role');
+    const cleanCode = req.params.code.trim().toUpperCase();
+    const certificate = await Certificate.findOne({
+      verificationCode: { $regex: new RegExp('^' + cleanCode + '$', 'i') }
+    })
+      .populate('userId', 'fullName employeeId jobTitle email employmentType bloodGroup profilePhoto')
+      .populate('issuedBy', 'fullName role email');
 
     if (!certificate) {
-      return res.status(404).json({ valid: false, message: 'Invalid certificate verification code.' });
+      return res.status(404).json({
+        verified: false,
+        valid: false,
+        status: 'Fake / Invalid',
+        message: `No authentic certificate found matching code '${cleanCode}'.`,
+        verificationId: cleanCode
+      });
     }
 
     res.json({
-      valid: true,
-      status: certificate.status,
+      verified: certificate.status === 'issued',
+      valid: certificate.status === 'issued',
+      type: 'certificate',
+      status: certificate.status === 'issued' ? 'Valid Authentic Certificate' : 'Revoked / Inactive',
+      verificationId: certificate.verificationCode,
+      certificateType: certificate.certificateType,
+      documentTitle: certificate.title,
+      fullName: certificate.fullName,
+      employeeId: certificate.employeeId,
+      jobTitle: certificate.metadata?.designation || certificate.userId?.jobTitle || 'Technical Operator',
+      department: certificate.metadata?.department || 'Operations',
+      issueDate: certificate.issueDate,
+      effectiveDate: certificate.effectiveDate,
+      relievingDate: certificate.metadata?.relievingDate || null,
+      issuedByName: certificate.issuedByName,
+      issuedByRole: certificate.issuedByRole,
+      content: certificate.content,
+      verifiedAt: new Date(),
+      issuer: 'Markdot Intellect Inc. Credential Authority',
       certificate: {
         title: certificate.title,
         type: certificate.certificateType,
@@ -203,7 +229,13 @@ router.get('/verify/:code', async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error verifying certificate', error: error.message });
+    res.status(500).json({
+      verified: false,
+      valid: false,
+      status: 'Verification Error',
+      message: 'Certificate verification failed.',
+      error: error.message
+    });
   }
 });
 

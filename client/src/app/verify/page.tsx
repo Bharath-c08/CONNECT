@@ -22,18 +22,28 @@ import {
   Lock,
   Heart,
   Briefcase,
-  Building
+  Building,
+  Award
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
 
 function VerificationContent() {
   const searchParams = useSearchParams();
-  const initialId = searchParams.get('id') || '';
-  const initialType = searchParams.get('type') || (initialId.startsWith('EMP-') ? 'idcard' : 'document');
+  const initialId =
+    searchParams.get('id') ||
+    searchParams.get('cert') ||
+    searchParams.get('code') ||
+    searchParams.get('ref') ||
+    '';
+  const paramType = searchParams.get('type') || '';
+  const computedInitialType: 'idcard' | 'document' | 'certificate' =
+    paramType === 'certificate' || initialId.startsWith('MD-')
+      ? 'certificate'
+      : paramType === 'idcard' || initialId.startsWith('EMP-')
+      ? 'idcard'
+      : 'document';
 
-  const [verifyType, setVerifyType] = useState<'idcard' | 'document'>(
-    initialType === 'idcard' || initialId.startsWith('EMP-') ? 'idcard' : 'document'
-  );
+  const [verifyType, setVerifyType] = useState<'idcard' | 'document' | 'certificate'>(computedInitialType);
   const [verificationId, setVerificationId] = useState(initialId);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -46,7 +56,7 @@ function VerificationContent() {
     }
   }, []);
 
-  const executeLookup = async (idToLookup: string, forcedType?: 'idcard' | 'document') => {
+  const executeLookup = async (idToLookup: string, forcedType?: 'idcard' | 'document' | 'certificate') => {
     const trimmed = idToLookup.trim().toUpperCase();
     if (!trimmed) return;
 
@@ -56,18 +66,28 @@ function VerificationContent() {
 
     try {
       let data;
-      // If explicit ID card mode or starts with EMP-
-      if (activeType === 'idcard') {
+      // 1. If ID card mode or starts with EMP-
+      if (activeType === 'idcard' || (trimmed.startsWith('EMP-') && activeType !== 'certificate')) {
         const cleanEmpId = trimmed.replace(/^EMP-/, '');
-        // Try dedicated ID card verify endpoint first, fallback to generic
         try {
           data = await apiRequest(`/documents/verify-idcard/${encodeURIComponent(cleanEmpId)}`);
         } catch {
           data = await apiRequest(`/documents/verify/${encodeURIComponent(`EMP-${cleanEmpId}`)}`);
         }
+      } else if (activeType === 'certificate' || trimmed.startsWith('MD-')) {
+        // 2. Dedicated Certificate lookup with fallback to documents endpoint
+        try {
+          data = await apiRequest(`/certificates/verify/${encodeURIComponent(trimmed)}`);
+        } catch {
+          data = await apiRequest(`/documents/verify/${encodeURIComponent(trimmed)}`);
+        }
       } else {
-        // Document or universal verify
-        data = await apiRequest(`/documents/verify/${encodeURIComponent(trimmed)}`);
+        // 3. Document or universal lookup
+        try {
+          data = await apiRequest(`/documents/verify/${encodeURIComponent(trimmed)}`);
+        } catch (e) {
+          data = await apiRequest(`/certificates/verify/${encodeURIComponent(trimmed)}`);
+        }
       }
 
       setResult(data);
@@ -79,6 +99,8 @@ function VerificationContent() {
         message:
           activeType === 'idcard'
             ? `No authentic employee record exists for ID '${trimmed}' in the official personnel registry.`
+            : activeType === 'certificate'
+            ? `No authentic institutional certificate exists for verification code '${trimmed}'.`
             : err.message || 'No official document record matches this Verification ID in the cryptographic registry.',
         verificationId: trimmed
       });
@@ -89,7 +111,12 @@ function VerificationContent() {
 
   useEffect(() => {
     if (initialId) {
-      const mode = initialId.startsWith('EMP-') ? 'idcard' : 'document';
+      const mode: 'idcard' | 'document' | 'certificate' =
+        paramType === 'certificate' || initialId.startsWith('MD-')
+          ? 'certificate'
+          : paramType === 'idcard' || initialId.startsWith('EMP-')
+          ? 'idcard'
+          : 'document';
       setVerifyType(mode);
       executeLookup(initialId, mode);
     }
@@ -100,13 +127,14 @@ function VerificationContent() {
     executeLookup(verificationId);
   };
 
-  const handleTypeChange = (newType: 'idcard' | 'document') => {
+  const handleTypeChange = (newType: 'idcard' | 'document' | 'certificate') => {
     setVerifyType(newType);
     setResult(null);
     setSearched(false);
   };
 
-  const isIdCardResult = result?.type === 'idcard' || Boolean(result?.employeeId);
+  const isCertificateResult = result?.type === 'certificate' || Boolean(result?.certificateType);
+  const isIdCardResult = (result?.type === 'idcard' || Boolean(result?.employeeId)) && !isCertificateResult;
 
   return (
     <div className="min-h-screen bg-[#030306] text-white font-mono flex flex-col justify-between select-none relative overflow-x-hidden">
@@ -156,40 +184,58 @@ function VerificationContent() {
             <span>Cryptographic Proof Engine</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase">
-            {verifyType === 'idcard' ? 'Verify Employee ID Card' : 'Verify Document Authenticity'}
+            {verifyType === 'idcard'
+              ? 'Verify Employee ID Card'
+              : verifyType === 'certificate'
+              ? 'Verify Official Certificate'
+              : 'Verify Document Authenticity'}
           </h2>
           <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
             {verifyType === 'idcard'
               ? 'Enter an Employee ID number or scan the QR code from the back of an official Markdot ID card to verify credential validity, active employment status, and authorized identity.'
+              : verifyType === 'certificate'
+              ? 'Enter the Reference Code (e.g. MD-NOC-...) or scan the QR code from an official NoC letter, Relieving letter, or Experience certificate to verify authenticity.'
               : 'Enter the non-sequential Verification ID or certificate hash printed on any official Markdot Intellect agreement, policy, or digital credential to verify its validity.'}
           </p>
         </div>
 
         {/* Verification Mode Selector Tabs */}
-        <div className="flex items-center gap-2 p-1 rounded-xl bg-zinc-900/90 border border-white/10 mb-6 w-full max-w-md shadow-lg">
+        <div className="flex items-center gap-2 p-1 rounded-xl bg-zinc-900/90 border border-white/10 mb-6 w-full max-w-lg shadow-lg">
           <button
             type="button"
             onClick={() => handleTypeChange('idcard')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
               verifyType === 'idcard'
                 ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <CreditCard className="w-4 h-4" />
-            <span>Employee ID Card</span>
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Employee ID</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange('certificate')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              verifyType === 'certificate'
+                ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>Certificate</span>
           </button>
           <button
             type="button"
             onClick={() => handleTypeChange('document')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
               verifyType === 'document'
                 ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <FileText className="w-4 h-4" />
-            <span>Legal Document</span>
+            <FileText className="w-3.5 h-3.5" />
+            <span>Policy Terms</span>
           </button>
         </div>
 
@@ -206,6 +252,8 @@ function VerificationContent() {
               placeholder={
                 verifyType === 'idcard'
                   ? 'e.g. MDPA005 or EMP-MDPA005'
+                  : verifyType === 'certificate'
+                  ? 'e.g. MD-NOC-XXXX-XXXX or MD-REL-XXXX-XXXX'
                   : 'e.g. DOC-VER-XXXX-XXXX'
               }
               className="flex-1 bg-transparent h-12 px-2 text-sm sm:text-base font-mono font-extrabold tracking-wider text-white placeholder:text-slate-600 outline-none uppercase"
@@ -294,7 +342,9 @@ function VerificationContent() {
                       }}
                     >
                       {result.verified
-                        ? isIdCardResult
+                        ? isCertificateResult
+                          ? 'AUTHENTIC // OFFICIAL INSTITUTIONAL CERTIFICATE'
+                          : isIdCardResult
                           ? 'AUTHENTIC // ACTIVE EMPLOYEE CREDENTIAL'
                           : 'AUTHENTIC // VALID DOCUMENT'
                         : result.status === 'Revoked'
@@ -322,8 +372,124 @@ function VerificationContent() {
               </div>
             </div>
 
-            {/* ── CONDITIONAL RENDERING: ID CARD vs DOCUMENT ── */}
-            {result.verified && isIdCardResult ? (
+            {/* ── CONDITIONAL RENDERING: CERTIFICATE vs ID CARD vs DOCUMENT ── */}
+            {result.verified && isCertificateResult ? (
+              /* ======================================================== */
+              /* ── VERIFIED OFFICIAL CERTIFICATE / EXIT CREDENTIAL ── */
+              /* ======================================================== */
+              <div className="py-6 space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-xl bg-zinc-950/80 border border-cyan-500/30">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                      <Award className="w-6 h-6 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="inline-block px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[9px] font-extrabold uppercase mb-1">
+                        OFFICIAL ATTESTED RECORD &bull; {result.certificateType?.replace('_', ' ').toUpperCase()}
+                      </div>
+                      <h2 className="text-lg font-black text-white uppercase tracking-wider">
+                        {result.documentTitle || result.title}
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Institutional attestation issued by Markdot Intellect Inc.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-left sm:text-right font-mono self-stretch sm:self-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-white/10">
+                    <span className="text-[8px] text-slate-400 uppercase tracking-widest block">VERIFICATION CODE</span>
+                    <span className="text-xs font-black text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded border border-cyan-500/30 inline-block mt-0.5">
+                      {result.verificationId}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <UserIcon className="w-3 h-3 text-cyan-400" />
+                      <span>RECIPIENT OPERATOR</span>
+                    </span>
+                    <strong className="text-white text-xs block truncate">
+                      {result.fullName}
+                    </strong>
+                    <span className="text-[9px] text-cyan-400 font-mono block">
+                      ID: {result.employeeId}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Briefcase className="w-3 h-3 text-emerald-400" />
+                      <span>ROLE & DEPT</span>
+                    </span>
+                    <strong className="text-white text-xs block truncate">
+                      {result.jobTitle || 'Technical Operator'}
+                    </strong>
+                    <span className="text-[9px] text-slate-400 block truncate">
+                      {result.department || 'Operations'}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-cyan-400" />
+                      <span>ISSUE DATE</span>
+                    </span>
+                    <strong className="text-white text-xs block">
+                      {result.issueDate
+                        ? new Date(result.issueDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+                        : 'Active Record'}
+                    </strong>
+                    <span className="text-[8px] text-slate-500 block">
+                      Effective: {result.effectiveDate ? new Date(result.effectiveDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'Immediate'}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <ShieldCheck className="w-3 h-3 text-purple-400" />
+                      <span>AUTHORIZED SIGNATORY</span>
+                    </span>
+                    <strong className="text-slate-200 text-xs block truncate">
+                      {result.issuedByName || 'Authorized Signatory'}
+                    </strong>
+                    <span className="text-[8px] text-purple-400 uppercase block">
+                      {result.issuedByRole || 'Administration'}
+                    </span>
+                  </div>
+                </div>
+
+                {result.content && (
+                  <div className="p-4 rounded-xl bg-zinc-950/90 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-[8px] font-bold uppercase tracking-wider text-slate-400">
+                      <span>DOCUMENT TRANSCRIPT RECORD</span>
+                      <span className="text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>MATCHED HASH</span>
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-black/50 border border-white/5 text-[11px] text-slate-300 font-sans leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto">
+                      {result.content}
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between gap-3 text-[9px]">
+                  <div>
+                    <span className="font-extrabold text-emerald-300 block uppercase">
+                      CRYPTOGRAPHICALLY ATTESTED INSTITUTIONAL CERTIFICATE
+                    </span>
+                    <span className="text-slate-400 text-[8px] block mt-0.5">
+                      Verified code {result.verificationId} &bull; Permanently archived in Markdot Official Credential Ledger
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black text-[8px] shrink-0 uppercase">
+                    STATUS // VERIFIED AUTHENTIC
+                  </div>
+                </div>
+              </div>
+            ) : result.verified && isIdCardResult ? (
               /* ======================================================== */
               /* ── VERIFIED EMPLOYEE IDENTIFICATION CARD DETAILS ── */
               /* ======================================================== */

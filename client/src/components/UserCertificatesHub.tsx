@@ -121,8 +121,8 @@ export default function UserCertificatesHub({
     if (previewCert) {
       const verifyUrl =
         typeof window !== 'undefined'
-          ? `${window.location.origin}/verify?cert=${previewCert.verificationCode}`
-          : `https://connect.markdot.com/verify?cert=${previewCert.verificationCode}`;
+          ? `${window.location.origin}/verify?id=${encodeURIComponent(previewCert.verificationCode)}&type=certificate`
+          : `https://connect.markdot.com/verify?id=${encodeURIComponent(previewCert.verificationCode)}&type=certificate`;
       try {
         const svg = generateQrSvg(verifyUrl, 84, '#0f172a', '#ffffff');
         setQrSvg(svg);
@@ -669,19 +669,28 @@ export default function UserCertificatesHub({
 
               {/* Signatory & Security Footer */}
               <div className="mt-14 pt-6 border-t border-slate-300 flex items-end justify-between font-sans">
-                <div className="flex items-center gap-3">
-                  {qrSvg && (
-                    <div
-                      className="w-20 h-20 bg-white p-1 rounded border border-slate-300 shrink-0"
-                      dangerouslySetInnerHTML={{ __html: qrSvg }}
-                    />
-                  )}
-                  <div className="text-[9px] text-slate-500 max-w-[200px]">
-                    <span className="font-bold text-slate-800 block uppercase">
-                      Official Digital Seal
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col items-center shrink-0">
+                    {qrSvg && (
+                      <div
+                        className="w-20 h-20 bg-white p-1 rounded-lg border-2 border-slate-900 flex items-center justify-center shadow-sm"
+                        dangerouslySetInnerHTML={{ __html: qrSvg }}
+                      />
+                    )}
+                    <span className="text-[7.5px] font-mono font-black text-slate-900 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded mt-1 uppercase tracking-wider text-center max-w-[100px] truncate block">
+                      {previewCert.verificationCode}
                     </span>
-                    <span>
-                      Scan to verify document authenticity on the Markdot Institutional Ledger.
+                  </div>
+
+                  <div className="text-[9px] text-slate-600 max-w-[220px]">
+                    <span className="font-black text-slate-900 block uppercase tracking-wider text-[10px]">
+                      Official Verification Seal
+                    </span>
+                    <span className="block text-[8.5px] text-slate-500 mt-0.5">
+                      Scan QR code or visit <strong className="text-slate-900 font-mono">/verify</strong> with reference code:
+                    </span>
+                    <span className="font-mono text-[9.5px] font-black text-cyan-900 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-300 inline-block mt-1">
+                      {previewCert.verificationCode}
                     </span>
                   </div>
                 </div>
